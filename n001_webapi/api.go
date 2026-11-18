@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/skycoin/skycoin-cx/n006_ast"
+	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
 // API represents an HTTP API.

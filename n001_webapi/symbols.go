@@ -3,8 +3,8 @@ package webapi
 import (
 	"unicode"
 
-	"github.com/skycoin/skycoin-cx/n001_types"
-	"github.com/skycoin/skycoin-cx/n006_ast"
+	"github.com/skycoin/skycoin-cx/t0-types"
+	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
 // ProgramMetaResp is a program meta data response.

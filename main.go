@@ -7,7 +7,7 @@ import (
 
 	"github.com/skycoin/skycoin-cx-playground/n001_webapi"
 	"github.com/skycoin/skycoin-cx-playground/n002_playground"
-	"github.com/skycoin/skycoin-cx/n011_actions"
+	"github.com/skycoin/skycoin-cx/t4-actions"
 )
 
 func main() {

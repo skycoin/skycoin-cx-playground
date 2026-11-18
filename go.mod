@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/prashantv/gostub v1.0.0
-	github.com/skycoin/skycoin-cx v0.0.0-20261117152803-b91dc227cb14
+	github.com/skycoin/skycoin-cx v0.0.0-20261118154316-ee4592edeb24
 )
 
 require (

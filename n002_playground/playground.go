@@ -15,16 +15,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skycoin/skycoin-cx/n010_execute"
+	"github.com/skycoin/skycoin-cx/t4-execute"
 
-	"github.com/skycoin/skycoin-cx/n011_actions"
-	parsingcompletor "github.com/skycoin/skycoin-cx/n020_cxparsingcompletor"
-	cxparsing "github.com/skycoin/skycoin-cx/n021_cxparsing"
+	"github.com/skycoin/skycoin-cx/t4-actions"
+	parsingcompletor "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor"
+	cxparsing "github.com/skycoin/skycoin-cx/t9-cxparsing"
 
-	"github.com/skycoin/skycoin-cx/n001_types"
-	constants "github.com/skycoin/skycoin-cx/n004_constants"
-	globals "github.com/skycoin/skycoin-cx/n005_globals"
-	cxast "github.com/skycoin/skycoin-cx/n006_ast"
+	"github.com/skycoin/skycoin-cx/t0-types"
+	constants "github.com/skycoin/skycoin-cx/t1-constants"
+	globals "github.com/skycoin/skycoin-cx/t2-globals"
+	cxast "github.com/skycoin/skycoin-cx/t3-ast"
 )
 
 var (
