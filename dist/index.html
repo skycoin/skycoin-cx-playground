@@ -3,16 +3,22 @@
 <head>
 <meta charset="utf-8">
 <title>CX Playground</title>
+<script src="coi-register.js"></script>
 </head>
 <body>
 <pre>CX Playground</pre>
 <select id="list"><option>Hello, World</option></select>
 <button id="ast">show AST</button>
 <button id="run">run</button>
-<pre id="memory">Memory info will display after running</pre>
+<button id="stop" disabled>stop</button>
+<pre id="status">Loading...</pre>
 <textarea id="code" rows="24" cols="80" spellcheck="false"></textarea>
 <pre id="output"></pre>
-<pre><a href="https://www.skycoin.com/">About Skycoin</a>  <a href="https://www.skycoin.com/cx/docs/">CX Docs</a>  <a href="https://github.com/skycoin/cx">CX Github</a></pre>
+<pre><a href="https://www.skycoin.com/">About Skycoin</a>  <a href="https://www.skycoin.com/cx/docs/">CX Docs</a>  <a href="https://github.com/skycoin/skycoin-cx">CX Github</a>  <a href="https://github.com/skycoin/skycoin-cx-playground">Playground source</a></pre>
+<script src="jsfs.js"></script>
+<script src="wasm_exec.js"></script>
+<script src="fsbridge.js"></script>
+<script src="proc.js"></script>
 <script src="js/editor.js"></script>
 </body>
 </html>

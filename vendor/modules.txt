@@ -1,3 +1,6 @@
+# github.com/0magnet/bottle v0.0.1-0.20261028202309-2b922f28f74e
+## explicit; go 1.24
+github.com/0magnet/bottle
 # github.com/go-gl/gl v0.0.0-20260331235117-4566fea9a276
 ## explicit; go 1.12
 github.com/go-gl/gl/v3.2-compatibility/gl
@@ -43,13 +46,15 @@ github.com/skycoin/skycoin/src/cipher/encoder
 github.com/skycoin/skycoin/src/cipher/ripemd160
 github.com/skycoin/skycoin/src/cipher/secp256k1-go
 github.com/skycoin/skycoin/src/cipher/secp256k1-go/secp256k1-go2
-# github.com/skycoin/skycoin-cx v0.0.0-20261118154316-ee4592edeb24
+# github.com/skycoin/skycoin-cx v0.0.0-20261118160112-0939d0741188
 ## explicit; go 1.27.3
 github.com/skycoin/skycoin-cx/t0-packages
 github.com/skycoin/skycoin-cx/t0-types
 github.com/skycoin/skycoin-cx/t0-util
 github.com/skycoin/skycoin-cx/t1-constants
 github.com/skycoin/skycoin-cx/t1-profiling
+github.com/skycoin/skycoin-cx/t10-cxrepl
+github.com/skycoin/skycoin-cx/t11-cx
 github.com/skycoin/skycoin-cx/t2-globals
 github.com/skycoin/skycoin-cx/t3-ast
 github.com/skycoin/skycoin-cx/t4-actions

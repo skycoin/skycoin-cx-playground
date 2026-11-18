@@ -24,7 +24,7 @@ func main() {
 	http.HandleFunc("/playground/examples", playground.GetExampleFileList)
 	http.HandleFunc("/playground/examples/code", playground.GetExampleFileContent)
 
-	http.Handle("/", http.FileServer(http.Dir("./dist")))
+	http.Handle("/", http.FileServer(http.Dir("./_site")))
 	http.Handle("/program/", webapi.NewAPI("/program", actions.AST))
 	http.HandleFunc("/eval", playground.RunProgram)
 	http.HandleFunc("/mem", playground.GetMemStatus)
