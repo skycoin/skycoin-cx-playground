@@ -7,13 +7,15 @@ Date: 7/20/2018
 
 package main 
 
+import "sys/string"
+
 //this function will also print strings
 func explanation (){
-	str.print("")
-	str.print("This program will first generate a random number between 5 & 15 that will be the size of an i32 array.")
-	str.print("Next, an i32 array will be generated and filled with random numbers ranging from 1-100.")
-	str.print("Finally, the i32 array will then be sorted using the bubble sort method and printed out.")
-	str.print("")
+	string.PrintLine("")
+	string.PrintLine("This program will first generate a random number between 5 & 15 that will be the size of an i32 array.")
+	string.PrintLine("Next, an i32 array will be generated and filled with random numbers ranging from 1-100.")
+	string.PrintLine("Finally, the i32 array will then be sorted using the bubble sort method and printed out.")
+	string.PrintLine("")
 }
 
 //this function will generate an i32 array filled with random numbers between 1 and 100 given the size of the array
@@ -66,16 +68,16 @@ func main() (){
 	
 	//assign random number a value (between 5 & 15) and fill i32 array with random numbers (between 1 & 100) and print out array
 	rand = i32.rand(5, 15)
-	str.print("Generating random array...")
+	string.PrintLine("Generating random array...")
 	nums = generateRandArray(rand)
-	str.print("Random array:")
+	string.PrintLine("Random array:")
 	printArray(nums, rand)
 	
 	//sort the array with bubbleSort()
-	str.print("")
-	str.print("Sorting array...")
+	string.PrintLine("")
+	string.PrintLine("Sorting array...")
 	nums = bubbleSort(nums, rand)
-	str.print("Sorted array:")
+	string.PrintLine("Sorted array:")
 	
 	//print the array with printArray()
 	printArray(nums, rand)

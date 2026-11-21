@@ -1,7 +1,7 @@
 package constants
 
 import (
-	"github.com/skycoin/skycoin-cx/t0-types"
+	"github.com/skycoin/skycoin-cx/t0-types" // thin: only POINTER_SIZE, Pointer; core types, keep
 )
 
 // var COREPATH = ""
@@ -15,6 +15,11 @@ const STDLIB_PKG = "stdlib"
 const OS_PKG = "os"
 const OS_ARGS = "Args"
 
+// LanguageVersionCurrent is the language version this CX implements, a
+// yymmddnnnn integer stored in serialized programs as CXProgram.Version.
+// See the Language versions section of LanguageGuide.md.
+const LanguageVersionCurrent int64 = 2611200002
+
 const NON_ASSIGN_PREFIX = "nonAssign"
 const LOCAL_PREFIX = "*tmp"
 const LABEL_PREFIX = "*lbl"
@@ -26,10 +31,15 @@ const INIT_FN = "initDef"
 
 const CALLSTACK_SIZE types.Pointer = 1000
 
-var STACK_SIZE types.Pointer = 1048576     // 1 Mb
+var STACK_SIZE types.Pointer = 1048576 // 1 Mb
+// VIOLATION: state outside State. Owner: t1-constants; moves to ConfigMng in phase 2.
 var INIT_HEAP_SIZE types.Pointer = 2097152 // 2 Mb
+// VIOLATION: state outside State. Owner: t1-constants; moves to ConfigMng in phase 2.
 var MAX_HEAP_SIZE types.Pointer = 67108864 // 64 Mb
+// VIOLATION: state outside State. Owner: t1-constants; moves to ConfigMng in phase 2.
 var MIN_HEAP_FREE_RATIO float32 = 0.4
+
+// VIOLATION: state outside State. Owner: t1-constants; moves to ConfigMng in phase 2.
 var MAX_HEAP_FREE_RATIO float32 = 0.7
 
 const NULL_HEAP_ADDRESS_OFFSET = types.POINTER_SIZE
@@ -75,34 +85,19 @@ const (
 )
 */
 
-const (
-	CX_SUCCESS = iota //zero can be success
-	CX_COMPILATION_ERROR
-	CX_PANIC // 2
-	CX_INTERNAL_ERROR
-	CX_ASSERT
-	CX_RUNTIME_ERROR
-	CX_RUNTIME_STACK_OVERFLOW_ERROR
-	CX_RUNTIME_HEAP_EXHAUSTED_ERROR
-	CX_RUNTIME_INVALID_ARGUMENT
-	CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE
-	CX_RUNTIME_NOT_IMPLEMENTED
-	CX_RUNTIME_INVALID_CAST
-)
-
 var ErrorStrings map[int]string = map[int]string{
-	CX_SUCCESS:                          "CX_SUCCESS",
-	CX_COMPILATION_ERROR:                "CX_COMPILATION_ERROR",
-	CX_PANIC:                            "CX_PANIC",
-	CX_INTERNAL_ERROR:                   "CX_INTERNAL_ERROR",
-	CX_ASSERT:                           "CX_ASSERT",
-	CX_RUNTIME_ERROR:                    "CX_RUNTIME_ERROR",
-	CX_RUNTIME_STACK_OVERFLOW_ERROR:     "CX_RUNTIME_STACK_OVERFLOW_ERROR",
-	CX_RUNTIME_HEAP_EXHAUSTED_ERROR:     "CX_RUNTIME_HEAP_EXHAUSTED_ERROR",
-	CX_RUNTIME_INVALID_ARGUMENT:         "CX_RUNTIME_INVALID_ARGUMENT",
-	CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE: "CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE",
-	CX_RUNTIME_NOT_IMPLEMENTED:          "CX_RUNTIME_NOT_IMPLEMENTED",
-	CX_RUNTIME_INVALID_CAST:             "CX_RUNTIME_INVALID_CAST",
+	types.CX_SUCCESS:                          "CX_SUCCESS",
+	types.CX_COMPILATION_ERROR:                "CX_COMPILATION_ERROR",
+	types.CX_PANIC:                            "CX_PANIC",
+	types.CX_INTERNAL_ERROR:                   "CX_INTERNAL_ERROR",
+	types.CX_ASSERT:                           "CX_ASSERT",
+	types.CX_RUNTIME_ERROR:                    "CX_RUNTIME_ERROR",
+	types.CX_RUNTIME_STACK_OVERFLOW_ERROR:     "CX_RUNTIME_STACK_OVERFLOW_ERROR",
+	types.CX_RUNTIME_HEAP_EXHAUSTED_ERROR:     "CX_RUNTIME_HEAP_EXHAUSTED_ERROR",
+	types.CX_RUNTIME_INVALID_ARGUMENT:         "CX_RUNTIME_INVALID_ARGUMENT",
+	types.CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE: "CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE",
+	types.CX_RUNTIME_NOT_IMPLEMENTED:          "CX_RUNTIME_NOT_IMPLEMENTED",
+	types.CX_RUNTIME_INVALID_CAST:             "CX_RUNTIME_INVALID_CAST",
 }
 
 const (

@@ -1,19 +1,9 @@
-// Main package 
-// It is important to write it to run the main function
-//In CX programing we can create many pakages and also utilize existing packages 
-// 
+// string.PrintLine belongs to the built-in package sys/string.
+// Built-in packages are imported by their sys/ path.
 package main
 
+import "sys/string"
 
-
-// This main function will print a string in the terminal
-// str.print("") prints the string 
 func main () {
-
-    var	loco i32
-
-	str.print("print string")
-
- 	str.print("Hello World!")
-
+	string.PrintLine("Hello World!")
 }

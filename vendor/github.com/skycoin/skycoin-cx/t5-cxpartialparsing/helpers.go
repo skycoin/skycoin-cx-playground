@@ -3,15 +3,18 @@ package partialparsing
 import (
 	"fmt"
 	"io"
+
+	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
-var CurrentFileName string
+// VIOLATION: state outside State. Owner: t5-cxpartialparsing; moves to ParseMng in phase 2.
+var CurrentFile ast.SourceFileGid
 
 func (yylex Lexer) Error(e string) {
 	if inREPL {
 		fmt.Printf("syntax error: %s\n", e)
 	} else {
-		fmt.Printf("%s:%d: syntax error: %s\n", CurrentFileName, yylex.l+1, e)
+		fmt.Printf("%s:%d: syntax error: %s\n", Program.CXProgramSourceFileText(CurrentFile), yylex.l+1, e)
 	}
 
 	yylex.stop()
@@ -31,7 +34,12 @@ func (yylex *Lexer) Lex(lval *yySymType) int {
 func NewLexer(rdr io.Reader) *Lexer {
 	lx := &Lexer{}
 	lx.init(rdr, func(l, c int, msg string) {
-		panic(fmt.Sprintf("[%d:%d] %s\n", l, c, msg))
+		// The REPL recovers this panic and keeps going.
+		if ast.InREPL {
+			panic(fmt.Sprintf("[%d:%d] %s\n", l, c, msg))
+		}
+		Program.CXProgramCompileErrorAdd(ast.CompileErrorCodeMessage, CurrentFile, l, ast.CompileErrorOperands{Program.CXProgramCompileErrorText(msg)})
+		Program.CXProgramCompileErrorExit()
 	})
 	return lx
 }

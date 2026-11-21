@@ -3,6 +3,8 @@
 
 package main
 
+import "sys/string"
+
 func main () () {
 // initialization of variable
     var i i32
@@ -15,10 +17,10 @@ func main () () {
     for i = 1; i32.lteq(i, 6); i = i32.add(i, 1){
 // if command 
         if i32.eq(i32.mod(i, 2), 0) {
-            str.print("Even")
+            string.PrintLine("Even")
             i32.print(i)
         } else {
-            str.print("Odd")
+            string.PrintLine("Odd")
             i32.print(i)
         }
     }

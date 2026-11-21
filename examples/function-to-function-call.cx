@@ -3,6 +3,8 @@
 // because CX support function into function call
 package main
 
+import "sys/string"
+
 // This function will convert the Kilo meter into Meters 
 //
 func KMtoMT(in f32) (out f32) {
@@ -54,8 +56,8 @@ func MtoYD(in f32)(out f32) {
 func main () () {
     
 // simple string print command 
-    str.print("Mill to KM example")
-    str.print("Example 7.89 Mills is (in KM): ")
+    string.PrintLine("Mill to KM example")
+    string.PrintLine("Example 7.89 Mills is (in KM): ")
 
 // we want to convert Yards to Meters 
 //  we does not have a direct function to get it

@@ -7,14 +7,15 @@ import (
 
 // TODO: rewrite slice api.
 // TODO: remove all offset > 0 tests.
-// TODO: panic(constants.CX_RUNTIME_*) instead of silent failure.
+// TODO: panic(types.CX_RUNTIME_*) instead of silent failure.
 
 // IsValidSliceIndex ...
 func IsValidSliceIndex(prgrm *CXProgram, offset types.Pointer, index types.Pointer, sizeofElement types.Pointer) bool {
 	sliceLen := GetSliceLen(prgrm, offset)
 	bytesLen := sliceLen * sizeofElement
 	index -= types.OBJECT_HEADER_SIZE + constants.SLICE_HEADER_SIZE + offset
-	if index >= 0 && index < bytesLen && (index%sizeofElement) == 0 {
+	// An index before the data wraps to a large value and fails index < bytesLen.
+	if index < bytesLen && (index%sizeofElement) == 0 {
 		return true
 	}
 	return false
@@ -24,6 +25,8 @@ func IsValidSliceIndex(prgrm *CXProgram, offset types.Pointer, index types.Point
 func GetSliceOffset(prgrm *CXProgram, fp types.Pointer, argTypeSig *CXTypeSignature) types.Pointer {
 	var element *CXArgument
 	if argTypeSig.Type == TYPE_CXARGUMENT_DEPRECATE {
+		// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+		// Now an arena getter, site S0386.
 		arg := prgrm.GetCXArgFromArray(CXArgumentIndex(argTypeSig.Meta))
 		element = arg.GetAssignmentElement(prgrm)
 
@@ -183,8 +186,8 @@ func SliceInsert(prgrm *CXProgram, fp types.Pointer, out *CXTypeSignature, inp *
 		inputSliceLen = GetSliceLen(prgrm, inputSliceOffset)
 	}
 
-	if index < 0 || index > inputSliceLen {
-		panic(constants.CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE)
+	if index > inputSliceLen {
+		panic(types.CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE)
 	}
 
 	var newLen = inputSliceLen + 1
@@ -206,8 +209,8 @@ func SliceRemove(prgrm *CXProgram, fp types.Pointer, out *CXTypeSignature, inp *
 		inputSliceLen = GetSliceLen(prgrm, inputSliceOffset)
 	}
 
-	if index < 0 || index >= inputSliceLen {
-		panic(constants.CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE)
+	if index >= inputSliceLen {
+		panic(types.CX_RUNTIME_SLICE_INDEX_OUT_OF_RANGE)
 	}
 
 	outputSliceData := GetSliceData(prgrm, outputSliceOffset, sizeofElement)

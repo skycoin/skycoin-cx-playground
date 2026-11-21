@@ -25,6 +25,8 @@ type cxCmdFlags struct {
 	minHeapFreeRatio float64
 	maxHeapFreeRatio float64
 	cxpath           string
+	sandbox          string
+	executor         string
 
 	// Debug flags for the CX developers
 	debugLexer      bool
@@ -43,9 +45,11 @@ func defaultCmdFlags() cxCmdFlags {
 		debugLexer:      false,
 		debugFileAccess: false,
 		debugProfile:    0,
+		executor:        executorAuto,
 	}
 }
 
+// VIOLATION: state outside State. Owner: t11-cx; moves to ConfigMng in phase 2.
 var commandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
 func appendDash(args []string) {
@@ -86,6 +90,8 @@ func parseFlags(options *cxCmdFlags, args []string) {
 	commandLine.Float64Var(&options.minHeapFreeRatio, "min-heap-free", options.minHeapFreeRatio, "Minimum heap space percentage that should be free after calling the garbage collector. Value must be in the range of 0.0 and 1.0.")
 	commandLine.Float64Var(&options.maxHeapFreeRatio, "max-heap-free", options.maxHeapFreeRatio, "Maximum heap space percentage that should be free after calling the garbage collector. Value must be in the range of 0.0 and 1.0.")
 	commandLine.StringVar(&options.cxpath, "cxpath", options.cxpath, "Used for dynamically setting the value of the environment variable CXPATH")
+	commandLine.StringVar(&options.sandbox, "sandbox", options.sandbox, "Directory a running program's file opcodes are confined to. Program paths must be relative and stay inside it. Defaults to the working directory.")
+	commandLine.StringVar(&options.executor, "executor", options.executor, "Loop that runs the program: auto runs it on the flat vm when every function lowers and on the old loop otherwise, old and vm force one loop. vm fails on a program that does not lower.")
 
 	// Debug flags
 	commandLine.BoolVar(&options.debugLexer, "debug-lexer", options.debugLexer, "Debug the lexer by printing all scanner tokens")
@@ -118,35 +124,35 @@ func printVersion() {
 }
 
 func checkHelp(args []string) bool {
-	if strings.Contains(args[0], "help") {
+	if len(args) > 0 && command(args[0], "help") {
 		return true
 	}
 	return false
 }
 
 func checkversion(args []string) bool {
-	if strings.Contains(args[0], "version") {
+	if len(args) > 0 && command(args[0], "version") {
 		return true
 	}
 	return false
 }
 
 func checkenv(args []string) bool {
-	if strings.Contains(args[0], "env") {
+	if len(args) > 0 && command(args[0], "env") {
 		return true
 	}
 	return false
 }
 
 func checkAST(args []string) bool {
-	if strings.Contains(args[0], "ast") {
+	if len(args) > 0 && command(args[0], "ast") {
 		return true
 	}
 	return false
 }
 
 func checktokenizeMode(args []string) bool {
-	if strings.Contains(args[0], "tokenize") {
+	if len(args) > 0 && command(args[0], "tokenize") {
 		return true
 	}
 	return false
@@ -162,4 +168,10 @@ func printEnv() {
 	fmt.Println("Operating system: ", runtime.GOOS)
 	fmt.Println("CX version: ", VERSION)
 	fmt.Println("CX binary location: ", filepath.Dir(ex))
+}
+
+// command reports whether arg names the subcommand, with or without leading
+// dashes, so a file path containing the name is not taken for it.
+func command(arg, name string) bool {
+	return strings.TrimLeft(arg, "-") == name
 }

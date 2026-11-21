@@ -1,27 +1,29 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 
 	"github.com/skycoin/skycoin-cx/t0-types"
-	"github.com/skycoin/skycoin-cx/t0-util"
-	"github.com/skycoin/skycoin-cx/t4-opcodes"
+	"github.com/skycoin/skycoin-cx/t0-util"    // thin: only CXCreateFile, CXLogFile, CXOpenFile, ProgramSandboxRootOpen; no depth gain
+	"github.com/skycoin/skycoin-cx/t4-opcodes" // thin: only AssertFailed, RegisterOpcodes; no depth gain
 
 	"github.com/skycoin/skycoin-cx/t1-constants"
 	"github.com/skycoin/skycoin-cx/t1-profiling"
-	repl "github.com/skycoin/skycoin-cx/t10-cxrepl"
+	repl "github.com/skycoin/skycoin-cx/t10-cxrepl" // thin: only Repl, ReplTargetFn; only user of cxrepl, could merge it here, max tier 11 to 10
 	"github.com/skycoin/skycoin-cx/t3-ast"
 	"github.com/skycoin/skycoin-cx/t4-actions"
-	"github.com/skycoin/skycoin-cx/t4-execute"
-	parsingcompletor "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor"
+	"github.com/skycoin/skycoin-cx/t4-execute" // thin: only RunCompiled; no depth gain
+	"github.com/skycoin/skycoin-cx/t5-cx-runtime-printer"
+	"github.com/skycoin/skycoin-cx/t5-cxos"                                // thin: only InitConstants; no depth gain
+	"github.com/skycoin/skycoin-cx/t6-cxfx"                                // thin: only InitConstants; no depth gain
+	cxinit "github.com/skycoin/skycoin-cx/t7-init"                         // thin: only MakeProgram, RegisterPackages; no depth gain
+	parsingcompletor "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor" // thin: only DebugLexer, Tokenize; no depth gain
 )
 
 func main() {
-
-	if os.Args != nil && len(os.Args) > 1 {
-		Run(os.Args[1:])
-	}
+	Run(os.Args[1:])
 }
 
 func Run(args []string) {
@@ -132,6 +134,10 @@ func Run(args []string) {
 		}
 	}
 
+	if options.stackSize != "" {
+		constants.STACK_SIZE = parseMemoryString(options.stackSize)
+	}
+
 	/*
 		options.minHeapFreeRatio checks for flags string "--min-heap-free"
 		$cx --min-heap-free
@@ -149,7 +155,11 @@ func Run(args []string) {
 	}
 
 	// options, file pointers, filenames
-	cxArgs, sourceCode, fileNames := ast.ParseArgsForCX(commandLine.Args(), true)
+	cxArgs, sourceCode, fileNames, err := util.ParseArgsForCX(commandLine.Args(), true)
+	if err != nil {
+		println(err.Error())
+		os.Exit(types.CX_COMPILATION_ERROR)
+	}
 
 	// Propagate some options out to other packages.
 	parsingcompletor.DebugLexer = options.debugLexer
@@ -158,8 +168,22 @@ func Run(args []string) {
 
 	profiling.DebugProfile = profiling.DebugProfileRate > 0
 
-	// Load op code tables
-	parsingcompletor.InitCXCore()
+	// Init 4-9 run here, after the flags, so the heap flags size the program.
+	// Init 1-3 are package vars (see the VIOLATION comments).
+	// Init 4: cx.* constants in actions.ConstCodes
+	actions.InitConstants()
+	// Init 5: os.* constants (empty with nocxos)
+	cxos.InitConstants()
+	// Init 6: gl, glfw and al constants (empty without cxfx)
+	cxfx.InitConstants()
+	// Init 7: actions.AST, the program state
+	// OBJMODEL: state.CXProgramMng.CXProgramAlloc(), phase 4 #371.
+	// Also state.CXProgramMng.CXProgramRelease(gid), phase 4 #371. Site S0062 S0063.
+	actions.AST = cxinit.MakeProgram()
+	// Init 8: native packages in the program and the global opcode tables
+	cxinit.RegisterPackages(actions.AST)
+	// Init 9: built-in opcode and operator tables
+	opcodes.RegisterOpcodes(actions.AST)
 
 	if run := parseProgram(options, fileNames, sourceCode); run {
 
@@ -184,14 +208,43 @@ func Run(args []string) {
 }
 
 func runProgram(options cxCmdFlags, cxArgs []string, sourceCode []*os.File) {
+	root, fileError := util.ProgramSandboxRootOpen(options.sandbox)
+	if fileError != nil {
+		fmt.Fprintf(os.Stderr, "cannot open the sandbox: %s\n", fileError.FileErrorMessage)
+		os.Exit(types.CX_COMPILATION_ERROR)
+	}
+	defer root.Close()
+	actions.AST.ProgramSandboxRoot = root
 
 	profiling.StartProfile("run")
 
 	defer profiling.StopProfile("run")
 
+	if options.executor != executorAuto && options.executor != executorOld && options.executor != executorVm {
+		fmt.Fprintf(os.Stderr, "unknown --executor %q, want auto, old or vm\n", options.executor)
+		os.Exit(types.CX_COMPILATION_ERROR)
+	}
+
 	if options.replMode || len(sourceCode) == 0 {
 		repl.Repl()
 		return
+	}
+
+	actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
+	actions.AST.CxIrState.StringPool.StringPoolFreeze()
+
+	if options.executor != executorOld {
+		image, _, outside := executorLower(actions.AST)
+		switch {
+		case outside == "":
+			if code := executorVmRun(actions.AST, &image); code != types.CX_SUCCESS {
+				os.Exit(int(code))
+			}
+			return
+		case options.executor == executorVm:
+			fmt.Fprintf(os.Stderr, "cannot run on vm: %s\n", outside)
+			os.Exit(types.CX_RUNTIME_NOT_IMPLEMENTED)
+		}
 	}
 
 	err := execute.RunCompiled(actions.AST, 0, cxArgs)
@@ -199,8 +252,11 @@ func runProgram(options cxCmdFlags, cxArgs []string, sourceCode []*os.File) {
 	if err != nil {
 		panic(err)
 	}
+	if actions.AST.RuntimeError.RuntimeErrorRecordRaised {
+		os.Exit(printer.PrinterRuntimeErrorPrint(actions.AST))
+	}
 
 	if opcodes.AssertFailed() {
-		os.Exit(constants.CX_ASSERT)
+		os.Exit(types.CX_ASSERT)
 	}
 }

@@ -46,10 +46,10 @@ func TestGetExampleFileContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	rr := httptest.NewRecorder()
-	mockSuccesRespone := `package main; 
+	mockSuccesRespone := `package main; import "sys/string";
 
 	func main() {
-			str.print("Hello, world example1!");
+			string.PrintLine("Hello, world example1!");
 	`
 	stubs := gostub.Stub(&getExampleFileContent, func(name string) (string, error) {
 		return mockSuccesRespone, nil
@@ -69,10 +69,10 @@ func TestGetExampleFileContent(t *testing.T) {
 }
 
 func TestRunProgram(t *testing.T) {
-	mockSuccesRequest := `package main; 
+	mockSuccesRequest := `package main; import "sys/string";
 
 	func main() {
-		str.print("Hello, World!");
+		string.PrintLine("Hello, World!");
 	}
 	`
 	mockSuccesResponse := `Hello, World!`

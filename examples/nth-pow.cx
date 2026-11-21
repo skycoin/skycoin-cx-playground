@@ -3,6 +3,8 @@
 // NthPow() will calculate the nth power of any given number
 package main
 
+import "sys/string"
+
 // Function to calculate the power of an integer 
 // it also show that how to use For loop
 // i32.lt(x,y) is x<y
@@ -18,8 +20,8 @@ func NthPow(in f32, pows i32) (out f32){
 func main() () {
 
 // print commands 
-    str.print("Nth Pow of a number")
-    str.print("Example 3.1416^9: ")
+    string.PrintLine("Nth Pow of a number")
+    string.PrintLine("Example 3.1416^9: ")
 // NthPow(x,y), x is variable and y is the power, x^y
     f32.print(NthPow(3.1416, 9))
 } 

@@ -6,14 +6,15 @@ import (
 	"regexp"
 	"strings"
 
-	cxpackages "github.com/skycoin/skycoin-cx/t0-packages"
+	cxpackages "github.com/skycoin/skycoin-cx/t0-packages" // thin: only IsBuiltinImport; no depth gain
 	"github.com/skycoin/skycoin-cx/t0-types"
-	"github.com/skycoin/skycoin-cx/t1-constants"
-	"github.com/skycoin/skycoin-cx/t1-profiling"
-	"github.com/skycoin/skycoin-cx/t2-globals"
+	"github.com/skycoin/skycoin-cx/t0-util"
+	"github.com/skycoin/skycoin-cx/t1-profiling" // thin: only CleanupAndExit, StartProfile, StopProfile; no depth gain
+	"github.com/skycoin/skycoin-cx/t2-globals"   // thin: only FoundCompileErrors, SRCPATH; no depth gain
 	"github.com/skycoin/skycoin-cx/t3-ast"
 	"github.com/skycoin/skycoin-cx/t4-actions"
-	cxpartialparsing "github.com/skycoin/skycoin-cx/t5-cxpartialparsing"
+	"github.com/skycoin/skycoin-cx/t5-cx-runtime-printer"                // thin: only PrinterCompileErrorsPrint; no depth gain
+	cxpartialparsing "github.com/skycoin/skycoin-cx/t5-cxpartialparsing" // thin: only CurrentFile, Parse, Program; no depth gain
 )
 
 // preliminarystage performs a first pass for the CX cxgo. Globals, packages and
@@ -43,6 +44,7 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 	profiling.StartProfile("1. packages/structs")
 	// 1. Identify all the packages and structs
 	for srcI, srcStr := range srcStrs {
+		actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 		srcName := srcNames[srcI]
 		profiling.StartProfile(srcName)
 
@@ -80,10 +82,16 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 				}
 
 				if match := rePkgName.FindStringSubmatch(string(line)); match != nil {
-					if pkg, err := cxpartialparsing.Program.GetPackage(match[len(match)-1]); err != nil {
+					if pkg, err := cxpartialparsing.Program.GetPackage(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1])); err != nil {
 						// then it hasn't been added
-						newPkg := ast.MakePackage(match[len(match)-1])
+						// OBJMODEL: state.CXPackageMng.CXPackageAlloc(), phase 4 #361.
+						// Now a constructor call, site S1620.
+						newPkg := ast.MakePackage(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1]))
+						// OBJMODEL: state.CXPackageMng.CXPackageAlloc(), phase 4 #361.
+						// Now an arena insert, site S1621.
 						pkgIdx := cxpartialparsing.Program.AddPackage(newPkg)
+						// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+						// Now an arena getter, site S1622.
 						newPkg, err = cxpartialparsing.Program.GetPackageFromArray(pkgIdx)
 						if err != nil {
 							panic(err)
@@ -106,11 +114,12 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 
 				if match := reStrctName.FindStringSubmatch(string(line)); match != nil {
 					if prePkg == nil {
-						println(ast.CompilationError(srcName, lineno),
-							"No package defined")
-					} else if _, err := cxpartialparsing.Program.GetStruct(match[len(match)-1], prePkg.Name); err != nil {
+						cxpartialparsing.Program.CXProgramCompileErrorAdd(ast.CompileErrorCodeNoPackageDefined, cxpartialparsing.Program.CXProgramSourceFileIntern(srcName), lineno, ast.CompileErrorOperands{})
+					} else if _, err := cxpartialparsing.Program.GetStruct(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1]), prePkg.Name); err != nil {
 						// then it hasn't been added
-						strct := ast.MakeStruct(match[len(match)-1])
+						// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+						// Now a constructor call, site S1623.
+						strct := ast.MakeStruct(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1]))
 						prePkg.AddStruct(cxpartialparsing.Program, strct)
 					}
 				}
@@ -125,6 +134,7 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 	//    We also identify packages again, so we know to what
 	//    package we're going to add the variable declaration to.
 	for i, source := range srcStrs {
+		actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 		profiling.StartProfile(srcNames[i])
 		// inBlock needs to be 0 to guarantee that we're in the global scope
 		var inBlock int
@@ -166,9 +176,13 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 				if match := reImpName.FindStringSubmatch(string(line)); match != nil {
 					pkgName := match[len(match)-1]
 					// Checking if `pkgName` already exists and if it's not a standard library package.
-					if _, err := cxpartialparsing.Program.GetPackage(pkgName); err != nil && !cxpackages.IsDefaultPackage(pkgName) {
-						// _, sourceCode, srcNames := ParseArgsForCX([]string{fmt.Sprintf("%s%s", SRCPATH, pkgName)}, false)
-						_, sourceCode, fileNames := ast.ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, pkgName)}, false)
+					if _, err := cxpartialparsing.Program.GetPackage(cxpartialparsing.Program.CXProgramNameIntern(pkgName)); err != nil && !cxpackages.IsBuiltinImport(pkgName) {
+						_, sourceCode, fileNames, err := util.ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, pkgName)}, false)
+						if err != nil {
+							printer.PrinterCompileErrorsPrint(cxpartialparsing.Program)
+							println(err.Error())
+							return parseErrors + 1
+						}
 						ParseSourceCode(sourceCode, fileNames)
 					}
 				}
@@ -184,10 +198,16 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 				}
 
 				if match := rePkgName.FindStringSubmatch(string(line)); match != nil {
-					if pkg, err := cxpartialparsing.Program.GetPackage(match[len(match)-1]); err != nil {
+					if pkg, err := cxpartialparsing.Program.GetPackage(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1])); err != nil {
 						// then it hasn't been added
-						prePkg = ast.MakePackage(match[len(match)-1])
+						// OBJMODEL: state.CXPackageMng.CXPackageAlloc(), phase 4 #361.
+						// Now a constructor call, site S1624.
+						prePkg = ast.MakePackage(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1]))
+						// OBJMODEL: state.CXPackageMng.CXPackageAlloc(), phase 4 #361.
+						// Now an arena insert, site S1625.
 						pkgIdx := cxpartialparsing.Program.AddPackage(prePkg)
+						// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+						// Now an arena getter, site S1626.
 						prePkg, err = cxpartialparsing.Program.GetPackageFromArray(pkgIdx)
 						if err != nil {
 							panic(err)
@@ -238,7 +258,7 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 				}
 
 				if match := rePkgName.FindStringSubmatch(string(line)); match != nil {
-					if pkg, err := cxpartialparsing.Program.GetPackage(match[len(match)-1]); err != nil {
+					if pkg, err := cxpartialparsing.Program.GetPackage(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1])); err != nil {
 						// it should be already present
 						panic(err)
 					} else {
@@ -257,12 +277,14 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 					continue
 				}
 				if match := reGlblName.FindStringSubmatch(string(line)); match != nil {
-					if _, err := prePkg.GetGlobal(actions.AST, match[len(match)-1]); err != nil {
+					if _, err := prePkg.GetGlobal(actions.AST, actions.AST.CXProgramNameIntern(match[len(match)-1])); err != nil {
 						// then it hasn't been added
-						arg := ast.MakeArgument(match[len(match)-1], "", 0)
+						// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+						// Now a constructor call, site S1627.
+						_, arg := ast.MakeArgument(actions.AST, actions.AST.CXProgramNameIntern(match[len(match)-1]), ast.SourceFileGidNil, 0)
 						arg.Offset = types.InvalidPointer
 						arg.Package = ast.CXPackageIndex(prePkg.Index)
-						argIdx := actions.AST.AddCXArgInArray(arg)
+						argIdx := ast.CXArgumentIndex(arg.Index)
 
 						prePkg.AddGlobal(actions.AST, argIdx)
 					}
@@ -276,10 +298,12 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 	profiling.StartProfile("3. cxpartialparsing")
 
 	for i, source := range srcStrs {
+		actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 		profiling.StartProfile(srcNames[i])
 		source = source + "\n"
+		cxpartialparsing.CurrentFile = ast.SourceFileGidNil
 		if len(srcNames) > 0 {
-			cxpartialparsing.CurrentFileName = srcNames[i]
+			cxpartialparsing.CurrentFile = actions.AST.CXProgramSourceFileIntern(srcNames[i])
 		}
 		/*
 			passone
@@ -293,18 +317,21 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 }
 
 func AddInitFunction(prgrm *ast.CXProgram) error {
-	mainPkg, err := prgrm.GetPackage(constants.MAIN_PKG)
+	prgrm.CxIrState.CxIrStateManagerGrowBoundary()
+	mainPkg, err := prgrm.GetPackage(prgrm.CxIrState.CxIrStateNameMain)
 	if err != nil {
 		return err
 	}
 
-	initFn := ast.MakeFunction(constants.SYS_INIT_FUNC, actions.CurrentFile, actions.LineNo)
+	// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
+	// Now a constructor call, site S1629.
+	initFn := ast.MakeFunction(prgrm, prgrm.CxIrState.CxIrStateNameSysInit, actions.CurrentFile, actions.LineNo)
 	_, fnIdx := mainPkg.AddFunction(prgrm, initFn)
 
 	//Init Expressions
 	actions.FunctionDeclaration(prgrm, fnIdx, nil, nil, prgrm.SysInitExprs)
 
-	if _, err := mainPkg.SelectFunction(prgrm, constants.MAIN_FUNC); err != nil {
+	if _, err := mainPkg.SelectFunction(prgrm, prgrm.CxIrState.CxIrStateNameMain); err != nil {
 		return err
 	}
 	return nil

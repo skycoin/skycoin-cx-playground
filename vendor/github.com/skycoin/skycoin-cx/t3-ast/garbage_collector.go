@@ -13,16 +13,22 @@ func MarkAndCompact(prgrm *CXProgram) {
 	// marking, setting forward addresses and updating references
 	// global variables
 	for _, pkgIdx := range prgrm.Packages {
+		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+		// Now an arena getter, site S0335.
 		pkg, err := prgrm.GetPackageFromArray(pkgIdx)
 		if err != nil {
 			panic(err)
 		}
 
 		for _, glblFldIdx := range pkg.Globals.Fields {
+			// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+			// Now an arena getter, site S0336.
 			glblFld := prgrm.GetCXTypeSignatureFromArray(glblFldIdx)
 
-			var glbl *CXArgument = &CXArgument{}
+			var glbl *CXArgument
 			if glblFld.Type == TYPE_CXARGUMENT_DEPRECATE {
+				// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+				// Now an arena getter, site S0338.
 				glbl = prgrm.GetCXArg(CXArgumentIndex(glblFld.Meta))
 			} else {
 				panic("type is not cxargument deprecate.")
@@ -45,12 +51,16 @@ func MarkAndCompact(prgrm *CXProgram) {
 			// If `ptr` has fields, we need to navigate the heap and mark its fields too.
 			if glbl.StructType != nil {
 				for _, typeSignatureIdx := range glbl.StructType.Fields {
+					// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+					// Now an arena getter, site S0339.
 					typeSignature := prgrm.GetCXTypeSignatureFromArray(typeSignatureIdx)
 
-					var fld *CXArgument = &CXArgument{}
+					var fld *CXArgument
 					if typeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
 						fldIdx := typeSignature.Meta
-						fld = &prgrm.CXArgs[fldIdx]
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S0341.
+						fld = prgrm.GetCXArg(CXArgumentIndex(fldIdx))
 					} else {
 						fld = typeSignature.GetCXArgFormat(prgrm)
 					}
@@ -103,12 +113,16 @@ func MarkAndCompact(prgrm *CXProgram) {
 					heapOffset := types.Read_ptr(prgrm.Memory, offset)
 					if heapOffset >= prgrm.Heap.StartsAt {
 						for _, typeSignatureIdx := range ptr.StructType.Fields {
+							// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+							// Now an arena getter, site S0342.
 							typeSignature := prgrm.GetCXTypeSignatureFromArray(typeSignatureIdx)
 
-							var fld *CXArgument = &CXArgument{}
+							var fld *CXArgument
 							if typeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
 								fldIdx := typeSignature.Meta
-								fld = &prgrm.CXArgs[fldIdx]
+								// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+								// Now an arena getter, site S0344.
+								fld = prgrm.GetCXArg(CXArgumentIndex(fldIdx))
 							} else {
 								fld = typeSignature.GetCXArgFormat(prgrm)
 							}
@@ -123,7 +137,11 @@ func MarkAndCompact(prgrm *CXProgram) {
 
 			// Checking if the field being accessed needs to be marked.
 			// If the root (`ptr`) is a pointer, this step is unnecessary.
+			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+			// Now an arena getter, site S0345.
 			if len(ptr.Fields) > 0 && !ptrIsPointer && prgrm.GetCXArgFromArray(ptr.Fields[len(ptr.Fields)-1]).IsPointer() {
+				// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+				// Now an arena getter, site S0346.
 				fld := prgrm.GetCXArgFromArray(ptr.Fields[len(ptr.Fields)-1])
 				MarkObjectsTree(prgrm, offset+fld.Offset, fld.Type, fld.DeclarationSpecifiers[1:])
 			}
@@ -238,6 +256,8 @@ func DisplaceReferences(prgrm *CXProgram, off types.Pointer, numPkgs int) {
 
 	count := 0
 	for _, pkgIdx := range prgrm.Packages {
+		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+		// Now an arena getter, site S0347.
 		pkg, err := prgrm.GetPackageFromArray(pkgIdx)
 		if err != nil {
 			panic(err)
@@ -251,10 +271,14 @@ func DisplaceReferences(prgrm *CXProgram, off types.Pointer, numPkgs int) {
 		// as any other object should be destroyed, as the program finished its
 		// execution.
 		for _, glblFldIdx := range pkg.Globals.Fields {
+			// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+			// Now an arena getter, site S0348.
 			glblFld := prgrm.GetCXTypeSignatureFromArray(glblFldIdx)
 
-			var glbl *CXArgument = &CXArgument{}
+			var glbl *CXArgument
 			if glblFld.Type == TYPE_CXARGUMENT_DEPRECATE {
+				// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+				// Now an arena getter, site S0350.
 				glbl = prgrm.GetCXArg(CXArgumentIndex(glblFld.Meta))
 			} else {
 				panic("type is not cxargument deprecate.")
@@ -267,12 +291,16 @@ func DisplaceReferences(prgrm *CXProgram, off types.Pointer, numPkgs int) {
 			// If it's a struct instance we need to displace each of its fields.
 			if glbl.StructType != nil {
 				for _, typeSignatureIdx := range glbl.StructType.Fields {
+					// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+					// Now an arena getter, site S0351.
 					typeSignature := prgrm.GetCXTypeSignatureFromArray(typeSignatureIdx)
 
-					var fld *CXArgument = &CXArgument{}
+					var fld *CXArgument
 					if typeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
 						fldIdx := typeSignature.Meta
-						fld = &prgrm.CXArgs[fldIdx]
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S0353.
+						fld = prgrm.GetCXArg(CXArgumentIndex(fldIdx))
 					} else {
 						fld = typeSignature.GetCXArgFormat(prgrm)
 					}
@@ -411,16 +439,22 @@ func updatePointers(prgrm *CXProgram, oldAddr, newAddr types.Pointer) {
 	// as it needs to be converted to bytes later on anyways. However, I'm sticking to an int32
 	// for a bit more of clarity.
 	for _, pkgIdx := range prgrm.Packages {
+		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+		// Now an arena getter, site S0354.
 		pkg, err := prgrm.GetPackageFromArray(pkgIdx)
 		if err != nil {
 			panic(err)
 		}
 
 		for _, glblFldIdx := range pkg.Globals.Fields {
+			// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+			// Now an arena getter, site S0355.
 			glblFld := prgrm.GetCXTypeSignatureFromArray(glblFldIdx)
 
-			var glbl *CXArgument = &CXArgument{}
+			var glbl *CXArgument
 			if glblFld.Type == TYPE_CXARGUMENT_DEPRECATE {
+				// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+				// Now an arena getter, site S0357.
 				glbl = prgrm.GetCXArg(CXArgumentIndex(glblFld.Meta))
 			} else {
 				panic("type is not cxargument deprecate.")
@@ -443,12 +477,16 @@ func updatePointers(prgrm *CXProgram, oldAddr, newAddr types.Pointer) {
 			// If `ptr` has fields, we need to navigate the heap and mark its fields too.
 			if glbl.StructType != nil {
 				for _, typeSignatureIdx := range glbl.StructType.Fields {
+					// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+					// Now an arena getter, site S0358.
 					typeSignature := prgrm.GetCXTypeSignatureFromArray(typeSignatureIdx)
 
-					var fld *CXArgument = &CXArgument{}
+					var fld *CXArgument
 					if typeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
 						fldIdx := typeSignature.Meta
-						fld = &prgrm.CXArgs[fldIdx]
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S0360.
+						fld = prgrm.GetCXArg(CXArgumentIndex(fldIdx))
 					} else {
 						fld = typeSignature.GetCXArgFormat(prgrm)
 					}
@@ -507,12 +545,16 @@ func updatePointers(prgrm *CXProgram, oldAddr, newAddr types.Pointer) {
 					if ptr.StructType != nil {
 						if heapOffset >= prgrm.Heap.StartsAt {
 							for _, typeSignatureIdx := range ptr.StructType.Fields {
+								// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+								// Now an arena getter, site S0361.
 								typeSignature := prgrm.GetCXTypeSignatureFromArray(typeSignatureIdx)
 
-								var fld *CXArgument = &CXArgument{}
+								var fld *CXArgument
 								if typeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
 									fldIdx := typeSignature.Meta
-									fld = &prgrm.CXArgs[fldIdx]
+									// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+									// Now an arena getter, site S0363.
+									fld = prgrm.GetCXArg(CXArgumentIndex(fldIdx))
 								} else {
 									fld = typeSignature.GetCXArgFormat(prgrm)
 								}
@@ -526,7 +568,11 @@ func updatePointers(prgrm *CXProgram, oldAddr, newAddr types.Pointer) {
 
 			// Checking if the field being accessed needs to be marked.
 			// If the root (`ptr`) is a pointer, this step is unnecessary.
+			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+			// Now an arena getter, site S0364.
 			if len(ptr.Fields) > 0 && !ptrIsPointer && prgrm.GetCXArgFromArray(ptr.Fields[len(ptr.Fields)-1]).IsPointer() {
+				// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+				// Now an arena getter, site S0365.
 				fld := prgrm.GetCXArgFromArray(ptr.Fields[len(ptr.Fields)-1])
 
 				// Getting the offset to the object in the heap

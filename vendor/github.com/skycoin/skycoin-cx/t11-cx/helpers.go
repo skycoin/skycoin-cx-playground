@@ -10,40 +10,58 @@ import (
 	"strings"
 
 	"github.com/skycoin/skycoin-cx/t0-types"
-	"github.com/skycoin/skycoin-cx/t4-opcodes"
+	"github.com/skycoin/skycoin-cx/t4-opcodes" // thin: only AssertFailed, RegisterOpcodes; no depth gain
 
-	"github.com/skycoin/skycoin-cx/t0-util"
+	"github.com/skycoin/skycoin-cx/t0-util" // thin: only CXCreateFile, CXLogFile, CXOpenFile; no depth gain
 	"github.com/skycoin/skycoin-cx/t1-constants"
 	"github.com/skycoin/skycoin-cx/t1-profiling"
-	repl "github.com/skycoin/skycoin-cx/t10-cxrepl"
+	repl "github.com/skycoin/skycoin-cx/t10-cxrepl" // thin: only Repl, ReplTargetFn; only user of cxrepl, could merge it here, max tier 11 to 10
 	"github.com/skycoin/skycoin-cx/t2-globals"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 	"github.com/skycoin/skycoin-cx/t4-actions"
-	cxinit "github.com/skycoin/skycoin-cx/t7-init"
-	cxgo "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor"
-	cxparsering "github.com/skycoin/skycoin-cx/t9-cxparsing"
-	cxparsing "github.com/skycoin/skycoin-cx/t9-cxparsing"
+	"github.com/skycoin/skycoin-cx/t5-cx-runtime-printer"
+	cxinit "github.com/skycoin/skycoin-cx/t7-init"             // thin: only MakeProgram, RegisterPackages; no depth gain
+	cxgo "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor" // thin: only DebugLexer, Tokenize; no depth gain
+	cxparsing "github.com/skycoin/skycoin-cx/t9-cxparsing"     // thin: only AddInitFunction, ParseSourceCode; no depth gain
 )
 
 func parseProgram(options cxCmdFlags, fileNames []string, sourceCode []*os.File) bool {
 
-	profile := profiling.StartCPUProfile("parse")
-	defer profiling.StopCPUProfile(profile)
+	stopCPUProfile, err := profiling.StartCPUProfile("parse", profiling.DebugProfileRate)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		stopCPUProfile = func() error { return nil }
+	}
+	defer func() {
+		if err := stopCPUProfile(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}()
 
-	defer profiling.DumpMEMProfile("parse")
+	if profiling.DebugProfile {
+		defer func() {
+			if err := profiling.DumpMemProfile("parse"); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+		}()
+	}
 
 	profiling.StartProfile("parse")
 	defer profiling.StopProfile("parse")
+	defer func() { printer.PrinterCompileErrorsPrint(actions.AST) }()
 
 	if actions.AST == nil {
+		// OBJMODEL: state.CXProgramMng.CXProgramAlloc(), phase 4 #371.
+		// Also state.CXProgramMng.CXProgramRelease(gid), phase 4 #371. Site S0056 S0057.
 		actions.AST = cxinit.MakeProgram()
+		cxinit.RegisterPackages(actions.AST)
 	}
 
 	// Parsing all the source code files sent as CLI arguments to CX.
 	cxparsing.ParseSourceCode(sourceCode, fileNames)
 
 	// Checking if a main package exists. If not, create and add it to `AST`.
-	if _, err := actions.AST.GetFunction(constants.MAIN_FUNC, constants.MAIN_PKG); err != nil {
+	if _, err := actions.AST.GetFunction(actions.AST.CxIrState.CxIrStateNameMain, actions.AST.CxIrState.CxIrStateNameMain); err != nil {
 		initMainPkg(actions.AST)
 	}
 
@@ -51,7 +69,7 @@ func parseProgram(options cxCmdFlags, fileNames []string, sourceCode []*os.File)
 	repl.ReplTargetFn = constants.MAIN_FUNC
 
 	// Adding *init function that initializes all the global variables.
-	err := cxparsering.AddInitFunction(actions.AST)
+	err = cxparsing.AddInitFunction(actions.AST)
 	if err != nil {
 		panic(fmt.Sprintf("error initializing function: %v", err))
 	}
@@ -59,11 +77,8 @@ func parseProgram(options cxCmdFlags, fileNames []string, sourceCode []*os.File)
 	actions.LineNo = 0
 
 	if globals.FoundCompileErrors {
-		//cleanupAndExit(cxcore.CX_COMPILATION_ERROR)
-		profiling.StopCPUProfile(profile)
-		exitCode := constants.CX_COMPILATION_ERROR
-		os.Exit(exitCode)
-
+		printer.PrinterCompileErrorsPrint(actions.AST)
+		profiling.CleanupAndExit(types.CX_COMPILATION_ERROR)
 	}
 
 	return true
@@ -71,13 +86,21 @@ func parseProgram(options cxCmdFlags, fileNames []string, sourceCode []*os.File)
 
 // initMainPkg adds a `main` package with an empty `main` function to `prgrm`.
 func initMainPkg(prgrm *ast.CXProgram) {
-	mod := ast.MakePackage(constants.MAIN_PKG)
+	// OBJMODEL: state.CXPackageMng.CXPackageAlloc(), phase 4 #361.
+	// Now a constructor call, site S0058.
+	mod := ast.MakePackage(prgrm.CxIrState.CxIrStateNameMain)
+	// OBJMODEL: state.CXPackageMng.CXPackageAlloc(), phase 4 #361.
+	// Now an arena insert, site S0059.
 	modIdx := prgrm.AddPackage(mod)
+	// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+	// Now an arena getter, site S0060.
 	modPkg, err := prgrm.GetPackageFromArray(modIdx)
 	if err != nil {
 		panic(err)
 	}
-	fn := ast.MakeFunction(constants.MAIN_FUNC, actions.CurrentFile, actions.LineNo)
+	// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
+	// Now a constructor call, site S0061.
+	fn := ast.MakeFunction(prgrm, prgrm.CxIrState.CxIrStateNameMain, actions.CurrentFile, actions.LineNo)
 	modPkg.AddFunction(prgrm, fn)
 }
 
@@ -141,7 +164,7 @@ func printProgramAST(options cxCmdFlags, cxArgs []string, sourceCode []*os.File)
 	actions.AST.PrintProgram()
 
 	if opcodes.AssertFailed() {
-		os.Exit(constants.CX_ASSERT)
+		os.Exit(types.CX_ASSERT)
 	}
 }
 
@@ -189,9 +212,8 @@ type SourceCode struct {
 	Code string //Unused?
 }
 
-// GetCXPath checks if the user has set the environment variable
-// `CXPATH`. If not, CX creates a workspace at $HOME/cx, along with $HOME/cx/bin,
-// $HOME/cx/pkg and $HOME/cx/src
+// GetCXPath sets the bin, pkg and src paths from -cxpath, else CXPATH, else
+// $HOME/cx. It does not create the directories.
 func GetCXPath(options cxCmdFlags) {
 	var err error
 	CXPATH := ""
@@ -216,25 +238,4 @@ func GetCXPath(options cxCmdFlags) {
 	globals.BINPATH = filepath.Join(CXPATH, "bin/")
 	globals.PKGPATH = filepath.Join(CXPATH, "pkg/")
 	globals.SRCPATH = filepath.Join(CXPATH, "src/")
-	//why would we create directories on executing every CX program?
-	//directory creation should be on installation
-	//CreateCxDirectories(CXPATH)
 }
-
-/*
-func CreateCxDirectories(CXPATH string) {
-		// Creating directories in case they do not exist.
-		if _, err := cxcore.CXStatFile(CXPATH); os.IsNotExist(err) {
-			cxcore.CXMkdirAll(CXPATH, 0755)
-		}
-		if _, err := cxcore.CXStatFile(cxcore.BINPATH); os.IsNotExist(err) {
-			cxcore.CXMkdirAll(cxcore.BINPATH, 0755)
-		}
-		if _, err := cxcore.CXStatFile(cxcore.PKGPATH); os.IsNotExist(err) {
-			cxcore.CXMkdirAll(cxcore.PKGPATH, 0755)
-		}
-		if _, err := cxcore.CXStatFile(cxcore.SRCPATH); os.IsNotExist(err) {
-			cxcore.CXMkdirAll(cxcore.SRCPATH, 0755)
-		}
-	}
-*/

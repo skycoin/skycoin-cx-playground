@@ -1,6 +1,8 @@
 package actions
 
 import (
+	"github.com/skycoin/skycoin-cx/t0-types"
+	"github.com/skycoin/skycoin-cx/t1-constants"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
@@ -21,18 +23,63 @@ func DeclareStruct(prgrm *ast.CXProgram, structName string, structFields []*ast.
 	}
 
 	// Make sure a struct with the same name is not yet defined.
-	strct, err := prgrm.GetStruct(structName, pkg.Name)
+	strct, err := prgrm.GetStruct(prgrm.CXProgramNameIntern(structName), pkg.Name)
 	if err != nil {
 		// FIXME: Should give a relevant error message
 		panic(err)
 	}
 
+	// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureRelease(gid), phase 4 #331.
+	// Now a dropped object, site S1208.
 	strct.Fields = nil
+	var structSize types.Pointer
 	for _, field := range structFields {
-		if _, err := strct.GetField(prgrm, field.Name); err == nil {
-			println(ast.CompilationError(field.ArgDetails.FileName, field.ArgDetails.FileLine), "Multiply defined struct field:", field.Name)
+		fieldSize, fits := declarationArgSize(field)
+		if !fits || !declarationSizeSumFits(structSize, fieldSize) {
+			prgrm.CXProgramCompileErrorAddDebug(ast.CompileErrorCodeDeclarationTooLarge, field.ArgDetails, ast.CompileErrorOperands{int64(field.Name)})
+			prgrm.ReleaseCXArgBuilder(field)
+		} else if _, err := strct.GetField(prgrm, field.Name); err == nil {
+			prgrm.CXProgramCompileErrorAddDebug(ast.CompileErrorCodeStructFieldMultiplyDefined, field.ArgDetails, ast.CompileErrorOperands{int64(field.Name)})
+			prgrm.ReleaseCXArgBuilder(field)
+		} else if inner := declareStructArgValueStruct(field); inner != nil && declareStructContains(prgrm, inner, strct) {
+			prgrm.CXProgramCompileErrorAddDebug(ast.CompileErrorCodeStructRecursive, field.ArgDetails, ast.CompileErrorOperands{int64(strct.Name)})
+			prgrm.ReleaseCXArgBuilder(field)
 		} else {
+			structSize += fieldSize
 			strct.AddField(prgrm, field)
 		}
 	}
+}
+
+// declareStructArgValueStruct returns the struct arg holds as a plain value,
+// or nil for no struct or one behind a pointer, slice or array (issue-233).
+func declareStructArgValueStruct(arg *ast.CXArgument) *ast.CXStruct {
+	for _, decl := range arg.DeclarationSpecifiers {
+		if decl == constants.DECL_POINTER || decl == constants.DECL_SLICE || decl == constants.DECL_ARRAY {
+			return nil
+		}
+	}
+	return arg.StructType
+}
+
+// declareStructContains reports whether a value of strct holds target by
+// value. Declared structs never hold themselves, so the walk ends.
+func declareStructContains(prgrm *ast.CXProgram, strct *ast.CXStruct, target *ast.CXStruct) bool {
+	if strct == target {
+		return true
+	}
+	for _, fieldIdx := range strct.Fields {
+		field := prgrm.GetCXTypeSignatureFromArray(fieldIdx)
+		var inner *ast.CXStruct
+		switch field.Type {
+		case ast.TYPE_STRUCT:
+			inner = prgrm.GetCXTypeSignatureStructFromArray(field.Meta).StructType
+		case ast.TYPE_CXARGUMENT_DEPRECATE:
+			inner = declareStructArgValueStruct(prgrm.GetCXArgFromArray(ast.CXArgumentIndex(field.Meta)))
+		}
+		if inner != nil && declareStructContains(prgrm, inner, target) {
+			return true
+		}
+	}
+	return false
 }

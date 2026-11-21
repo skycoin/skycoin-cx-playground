@@ -1,5 +1,7 @@
 package main
 
+import "sys/string"
+
 // Function to add each digit form the value
 func Sum(i i32, base i32) (out i32){
 	out = 0 
@@ -23,19 +25,19 @@ func digiatlRoot(in i32, base i32) (r []i32){
 }
 
 func main () () {
-	str.print("        Digital Root Example")
-	str.print("I will set the value for you :)")
+	string.PrintLine("        Digital Root Example")
+	string.PrintLine("I will set the value for you :)")
 
 	if i32.gt(30, 0){
-		str.print("The value is 30")
+		string.PrintLine("The value is 30")
 		// i32.read()... it's not available
-		str.print("And I will call digiatlRoot() with base 10")
+		string.PrintLine("And I will call digiatlRoot() with base 10")
 		var a []i32 = digiatlRoot(30, 10)
-		str.print("The digital root of 30 is...")
+		string.PrintLine("The digital root of 30 is...")
 		i32.print(a[0])
-		str.print("and the persistence is...")
+		string.PrintLine("and the persistence is...")
 		i32.print(a[1])
 	} else {
-		str.print("I said GREATER than 0!")
+		string.PrintLine("I said GREATER than 0!")
 	}
 }

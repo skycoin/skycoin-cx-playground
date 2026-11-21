@@ -3,6 +3,8 @@
 // because CX support function into function call
 package main
 
+import "sys/string"
+
 // This function will convert the Kilo meter into Meters 
 //
 func KMtoMT(in f32) (out f32) {
@@ -55,23 +57,23 @@ func main () () {
     
 // simple string print command with called funtion inside the print command 
    
-    str.print("Example 7.89 Mills is (in Yard): ")
+    string.PrintLine("Example 7.89 Mills is (in Yard): ")
     f32.print(MtoYD(7.89))
-    str.print("Example 7.89 Yards is (in Miles): ")
+    string.PrintLine("Example 7.89 Yards is (in Miles): ")
     f32.print(YDtoM(7.89))
 
-    str.print("Example 7.89 Foot is (in Yard): ")
+    string.PrintLine("Example 7.89 Foot is (in Yard): ")
     f32.print(FTtoYD(7.89))
-    str.print("Example 7.89 Yards is (in Foot): ")
+    string.PrintLine("Example 7.89 Yards is (in Foot): ")
     f32.print(YDtoFT(7.89))
    
-    str.print("Example 7.89 Foot is (in Meters): ")
+    string.PrintLine("Example 7.89 Foot is (in Meters): ")
     f32.print(FTtoMT(7.89))
-    str.print("Example 7.89 Meters is (in Foot): ")
+    string.PrintLine("Example 7.89 Meters is (in Foot): ")
     f32.print(MTtoFT(7.89)) 
 
-    str.print("Example 7.89 Kilo meters is (in Meters): ")
+    string.PrintLine("Example 7.89 Kilo meters is (in Meters): ")
     f32.print(KMtoMT(7.89))
-    str.print("Example 7.89 Meters is (in Kilo meters): ")
+    string.PrintLine("Example 7.89 Meters is (in Kilo meters): ")
 
 }

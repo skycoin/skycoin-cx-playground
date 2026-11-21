@@ -49,14 +49,14 @@ func extractExportedSymbols(prgrm *ast.CXProgram, pkg *ast.CXPackage) ExportedSy
 	for _, fIdx := range pkg.Functions {
 		f := prgrm.GetFunctionFromArray(fIdx)
 
-		if isExported(f.Name) {
+		if isExported(prgrm.CXProgramNameText(f.Name)) {
 			resp.Functions = append(resp.Functions, displayCXFunction(prgrm, pkg, f))
 		}
 	}
 
 	for _, sIdx := range pkg.Structs {
 		strct := &prgrm.CXStructs[sIdx]
-		if isExported(strct.Name) {
+		if isExported(prgrm.CXProgramNameText(strct.Name)) {
 			resp.Structs = append(resp.Structs, displayCXStruct(prgrm, strct))
 		}
 	}
@@ -64,7 +64,7 @@ func extractExportedSymbols(prgrm *ast.CXProgram, pkg *ast.CXPackage) ExportedSy
 	for _, gIdx := range pkg.Globals.Fields {
 		typeSigGlobal := prgrm.GetCXTypeSignatureFromArray(gIdx)
 
-		if isExported(typeSigGlobal.Name) {
+		if isExported(prgrm.CXProgramNameText(typeSigGlobal.Name)) {
 			resp.Globals = append(resp.Globals, displayCXGlobal(prgrm, typeSigGlobal))
 		}
 	}
@@ -74,7 +74,7 @@ func extractExportedSymbols(prgrm *ast.CXProgram, pkg *ast.CXPackage) ExportedSy
 
 func displayCXFunction(prgrm *ast.CXProgram, pkg *ast.CXPackage, f *ast.CXFunction) ExportedSymbol {
 	return ExportedSymbol{
-		Name:      f.Name,
+		Name:      prgrm.CXProgramNameText(f.Name),
 		Signature: ast.SignatureStringOfFunction(prgrm, pkg, f),
 		Type:      types.FUNC,
 		TypeName:  types.FUNC.Name(),
@@ -83,7 +83,7 @@ func displayCXFunction(prgrm *ast.CXProgram, pkg *ast.CXPackage, f *ast.CXFuncti
 
 func displayCXStruct(prgrm *ast.CXProgram, s *ast.CXStruct) ExportedSymbol {
 	return ExportedSymbol{
-		Name:      s.Name,
+		Name:      prgrm.CXProgramNameText(s.Name),
 		Signature: ast.SignatureStringOfStruct(prgrm, s),
 		Type:      types.STRUCT,
 		TypeName:  "struct",
@@ -112,7 +112,7 @@ func displayCXGlobal(prgrm *ast.CXProgram, glbl *ast.CXTypeSignature) ExportedSy
 		glblType = arg.Type
 	}
 	return ExportedSymbol{
-		Name:      glbl.Name,
+		Name:      prgrm.CXProgramNameText(glbl.Name),
 		Signature: nil,
 		Type:      glblType,
 		TypeName:  glblType.Name(),

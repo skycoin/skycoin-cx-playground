@@ -3,6 +3,7 @@ package actions
 import (
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t1-constants"
+	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
@@ -28,14 +29,17 @@ func hasDerefOp(arg *ast.CXArgument, spec int) bool {
 	return found
 }
 
-// WritePrimary writes those bytes to prgrm.Data and returns a CXArg.
+// WritePrimary writes those bytes to prgrm.Data and returns a new argument
+// for them. The caller takes the argument or releases it.
 func WritePrimary(prgrm *ast.CXProgram, typeCode types.Code, byts []byte, isSlice bool) *ast.CXArgument {
 	pkg, err := prgrm.GetCurrentPackage()
 	if err != nil {
 		panic(err)
 	}
 
-	arg := ast.MakeArgument("", CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1052.
+	_, arg := ast.MakeArgument(prgrm, stringpool.StringGidNil, CurrentFile, LineNo)
 	arg.SetType(typeCode)
 	arg.Package = ast.CXPackageIndex(pkg.Index)
 
@@ -63,7 +67,7 @@ func WritePrimary(prgrm *ast.CXProgram, typeCode types.Code, byts []byte, isSlic
 		var i types.Pointer
 		// First we need to fill the remaining free bytes in
 		// the current `prgrm.Memory` slice.
-		for i = types.Pointer(0); i < memSize-prgrm.Data.Size+prgrm.Data.StartsAt; i++ {
+		for i = types.Pointer(0); i < memSize-(prgrm.Data.Size+prgrm.Data.StartsAt); i++ {
 			prgrm.Memory[prgrm.Data.Size+prgrm.Data.StartsAt+i] = byts[i]
 		}
 		// Then we append the bytes that didn't fit.
@@ -76,10 +80,7 @@ func WritePrimary(prgrm *ast.CXProgram, typeCode types.Code, byts []byte, isSlic
 	prgrm.Data.Size += size
 	prgrm.Heap.StartsAt = prgrm.Data.Size + prgrm.Data.StartsAt
 
-	argIdx := prgrm.AddCXArgInArray(arg)
-	argReturn := prgrm.GetCXArgFromArray(argIdx)
-
-	return argReturn
+	return arg
 }
 
 // WritePrimary writes those bytes to prgrm.Data and returns a []CXExpression.
@@ -91,33 +92,35 @@ func WritePrimaryExprs(prgrm *ast.CXProgram, typeCode types.Code, byts []byte, i
 
 	arg := WritePrimary(prgrm, typeCode, byts, isSlice)
 
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1055.
 	expr := ast.MakeAtomicOperatorExpression(prgrm, nil)
 	prgrm.CXAtomicOps[expr.Index].Package = ast.CXPackageIndex(pkg.Index)
 
-	typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, arg)
-	typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, arg)
 	prgrm.CXAtomicOps[expr.Index].AddOutput(prgrm, typeSigIdx)
 
+	// OBJMODEL: state.CXExpressionMng (manager storage) or []CXExpressionGid, phase 4 #346.
+	// Now a slice of objects, site S1057.
 	return []ast.CXExpression{*expr}
 }
 
-func TotalLength(lengths []types.Pointer) types.Pointer {
-	total := types.Pointer(1)
-	for _, i := range lengths {
-		total *= i
-	}
-
-	return total
-}
-
-func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile string, lineNo int) {
+func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast.SourceFileGid, lineNo int) {
 	// Argument type
-	argStrct := ast.MakeStruct("Argument")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1058.
+	argStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Argument"))
 	// argStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	argFldName := ast.MakeField("Name", types.STR, "", 0)
-	argFldIndex := ast.MakeField("Index", types.I32, "", 0)
-	argFldType := ast.MakeField("Type", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1059.
+	_, argFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1060.
+	_, argFldIndex := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Index"), types.I32, ast.SourceFileGidNil, 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1061.
+	_, argFldType := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Type"), types.STR, ast.SourceFileGidNil, 0)
 
 	argStrct.AddField(prgrm, argFldName)
 	argStrct.AddField(prgrm, argFldIndex)
@@ -126,26 +129,38 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile str
 	pkg.AddStruct(prgrm, argStrct)
 
 	// Expression type
-	exprStrct := ast.MakeStruct("Expression")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1062.
+	exprStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Expression"))
 	// exprStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	exprFldOperator := ast.MakeField("Operator", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1063.
+	_, exprFldOperator := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Operator"), types.STR, ast.SourceFileGidNil, 0)
 
 	exprStrct.AddField(prgrm, exprFldOperator)
 
 	pkg.AddStruct(prgrm, exprStrct)
 
 	// Function type
-	fnStrct := ast.MakeStruct("Function")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1064.
+	fnStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Function"))
 	// fnStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	fnFldName := ast.MakeField("Name", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1065.
+	_, fnFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
 
-	fnFldInpSig := ast.MakeField("InputSignature", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1066.
+	_, fnFldInpSig := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("InputSignature"), types.STR, ast.SourceFileGidNil, 0)
 	fnFldInpSig.Size = types.STR.Size()
 	fnFldInpSig = DeclarationSpecifiers(fnFldInpSig, []types.Pointer{0}, constants.DECL_SLICE)
 
-	fnFldOutSig := ast.MakeField("OutputSignature", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1067.
+	_, fnFldOutSig := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("OutputSignature"), types.STR, ast.SourceFileGidNil, 0)
 	fnFldOutSig.Size = types.STR.Size()
 	fnFldOutSig = DeclarationSpecifiers(fnFldOutSig, []types.Pointer{0}, constants.DECL_SLICE)
 
@@ -157,31 +172,45 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile str
 	pkg.AddStruct(prgrm, fnStrct)
 
 	// Structure type
-	strctStrct := ast.MakeStruct("Structure")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1068.
+	strctStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Structure"))
 	// strctStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	strctFldName := ast.MakeField("Name", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1069.
+	_, strctFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
 
 	strctStrct.AddField(prgrm, strctFldName)
 
 	pkg.AddStruct(prgrm, strctStrct)
 
 	// Package type
-	pkgStrct := ast.MakeStruct("Structure")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1070.
+	pkgStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Structure"))
 	// pkgStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	pkgFldName := ast.MakeField("Name", types.STR, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1071.
+	_, pkgFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
 
 	pkgStrct.AddField(prgrm, pkgFldName)
 
 	pkg.AddStruct(prgrm, pkgStrct)
 
 	// Caller type
-	callStrct := ast.MakeStruct("Caller")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1072.
+	callStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Caller"))
 	// callStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_I32)
 
-	callFldFnName := ast.MakeField("FnName", types.STR, "", 0)
-	callFldFnSize := ast.MakeField("FnSize", types.I32, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1073.
+	_, callFldFnName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("FnName"), types.STR, ast.SourceFileGidNil, 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1074.
+	_, callFldFnSize := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("FnSize"), types.I32, ast.SourceFileGidNil, 0)
 
 	callStrct.AddField(prgrm, callFldFnName)
 	callStrct.AddField(prgrm, callFldFnSize)
@@ -189,19 +218,27 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile str
 	pkg.AddStruct(prgrm, callStrct)
 
 	// Program type
-	prgrmStrct := ast.MakeStruct("Program")
+	// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
+	// Now a constructor call, site S1075.
+	prgrmStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Program"))
 	// prgrmStrct.Size = cxcore.GetArgSize(cxcore.TYPE_I32) + cxcore.GetArgSize(cxcore.TYPE_I64)
 
-	prgrmFldCallCounter := ast.MakeField("CallCounter", types.I32, "", 0)
-	prgrmFldFreeHeap := ast.MakeField("HeapUsed", types.I64, "", 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1076.
+	_, prgrmFldCallCounter := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("CallCounter"), types.I32, ast.SourceFileGidNil, 0)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1077.
+	_, prgrmFldFreeHeap := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("HeapUsed"), types.I64, ast.SourceFileGidNil, 0)
 
 	// prgrmFldCaller := cxcore.MakeField("Caller", cxcore.TYPE_STRUCT, "", 0)
+	// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
+	// Now an arena getter, site S1078.
 	strctPkg, err := prgrm.GetPackageFromArray(callStrct.Package)
 	if err != nil {
 		panic(err)
 	}
-	prgrmFldCaller := DeclarationSpecifiersStruct(prgrm, callStrct.Name, strctPkg.Name, false, currentFile, lineNo)
-	prgrmFldCaller.Name = "Caller"
+	prgrmFldCaller := DeclarationSpecifiersStruct(prgrm, prgrm.CXProgramNameText(callStrct.Name), prgrm.CXProgramNameText(strctPkg.Name), false, currentFile, lineNo)
+	prgrmFldCaller.Name = prgrm.CXProgramNameIntern("Caller")
 
 	prgrmStrct.AddField(prgrm, prgrmFldCallCounter)
 	prgrmStrct.AddField(prgrm, prgrmFldFreeHeap)
@@ -217,38 +254,50 @@ func PrimaryIdentifier(prgrm *ast.CXProgram, ident string) []ast.CXExpression {
 		panic(err)
 	}
 
-	arg := ast.MakeArgument(ident, CurrentFile, LineNo) // fix: line numbers in errors sometimes report +1 or -1. Issue #195
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1079.
+	_, arg := ast.MakeArgument(prgrm, prgrm.CXProgramNameIntern(ident), CurrentFile, LineNo) // fix: line numbers in errors sometimes report +1 or -1. Issue #195
 	arg.SetType(types.IDENTIFIER)
-	arg.Name = ident
 	arg.Package = ast.CXPackageIndex(pkg.Index)
 
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1080.
 	expr := ast.MakeAtomicOperatorExpression(prgrm, nil)
+	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+	// Now an arena getter, site S1081.
 	expression, err := prgrm.GetCXAtomicOp(expr.Index)
 	if err != nil {
 		panic(err)
 	}
 
-	typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, arg)
-	typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, arg)
 	expression.AddOutput(prgrm, typeSigIdx)
 	expression.Package = ast.CXPackageIndex(pkg.Index)
+	// OBJMODEL: state.CXExpressionMng (manager storage) or []CXExpressionGid, phase 4 #346.
+	// Now a slice of objects, site S1083.
 	return []ast.CXExpression{*expr}
 }
 
 // IsAllArgsBasicTypes checks if all the input arguments in an expressions are of basic type.
 func IsAllArgsBasicTypes(prgrm *ast.CXProgram, expr *ast.CXExpression) bool {
+	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+	// Now an arena getter, site S1084.
 	expression, err := prgrm.GetCXAtomicOp(expr.Index)
 	if err != nil {
 		panic(err)
 	}
 
 	for _, inputIdx := range expression.GetInputs(prgrm) {
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S1085.
 		input := prgrm.GetCXTypeSignatureFromArray(inputIdx)
 
 		var inpType types.Code
 
-		var inp *ast.CXArgument = &ast.CXArgument{}
+		var inp *ast.CXArgument
 		if input.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
+			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+			// Now an arena getter, site S1087.
 			inp = prgrm.GetCXArgFromArray(ast.CXArgumentIndex(input.Meta))
 
 			inpType = inp.Type

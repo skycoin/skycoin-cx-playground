@@ -1,5 +1,7 @@
 package main
 
+import "sys/string"
+
 func sumInt(a i32, b i32) (sum i32) {
 	sum = i32.add(a, b)
 }
@@ -9,6 +11,6 @@ func main() {
 	var num2 f32 = 6.5
 	var s str = "Addition of two numbers:"
 
-	str.print(s)
+	string.PrintLine(s)
 	i32.print(sumInt(num1, f32.i32(num2)))
 }

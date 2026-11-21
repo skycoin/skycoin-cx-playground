@@ -6,13 +6,6 @@ import (
 	//"fmt"
 )
 
-// CXCall ...
-type CXCall struct {
-	Operator     *CXFunction   // What CX function will be called when running this CXCall in the runtime
-	Line         int           // What line in the CX function is currently being executed
-	FramePointer types.Pointer // Where in the stack is this function call's local variables stored
-}
-
 func popStack(prgrm *CXProgram, call *CXCall) error {
 	// going back to the previous call
 	prgrm.CallCounter--
@@ -31,6 +24,8 @@ func popStack(prgrm *CXProgram, call *CXCall) error {
 
 	expr := returnOp.Expressions[returnLine]
 
+	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+	// Now an arena getter, site S0097.
 	cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
 	if err != nil {
 		return err
@@ -40,12 +35,16 @@ func popStack(prgrm *CXProgram, call *CXCall) error {
 	lenOuts := len(cxAtomicOpOutputs)
 	callOperatorOutputs := call.Operator.GetOutputs(prgrm)
 	for i, outputIdx := range callOperatorOutputs {
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S0098.
 		output := prgrm.GetCXTypeSignatureFromArray(outputIdx)
 		// Continuing if there is no receiving variable available.
 		if i >= lenOuts {
 			continue
 		}
 
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S0099.
 		cxAtomicOpOutput := prgrm.GetCXTypeSignatureFromArray(cxAtomicOpOutputs[i])
 		types.WriteSlice_byte(prgrm.Memory, GetFinalOffset(prgrm, returnFP, nil, cxAtomicOpOutput),
 			types.GetSlice_byte(prgrm.Memory, GetFinalOffset(prgrm, fp, nil, output), output.GetSize(prgrm, false)))
@@ -60,20 +59,19 @@ func popStack(prgrm *CXProgram, call *CXCall) error {
 	return nil
 }
 
-func wipeDeclarationMemory(prgrm *CXProgram, expr *CXExpression) error {
-	cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
-	if err != nil {
-		return err
-	}
-
+func wipeDeclarationMemory(prgrm *CXProgram, cxAtomicOp *CXAtomicOperator) error {
 	newCall := &prgrm.CallStack[prgrm.CallCounter]
 	newFP := newCall.FramePointer
 	cxAtomicOpOutputs := cxAtomicOp.GetOutputs(prgrm)
+	// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+	// Now an arena getter, site S0101.
 	cxAtomicOutputTypeSig := prgrm.GetCXTypeSignatureFromArray(cxAtomicOpOutputs[0])
 	size := cxAtomicOutputTypeSig.GetSize(prgrm, false)
 	var offset types.Pointer
 	if cxAtomicOutputTypeSig.Type == TYPE_CXARGUMENT_DEPRECATE {
-		offset = prgrm.CXArgs[cxAtomicOutputTypeSig.Meta].Offset
+		// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+		// Now an arena getter, site S1630.
+		offset = prgrm.GetCXArg(CXArgumentIndex(cxAtomicOutputTypeSig.Meta)).Offset
 	} else if cxAtomicOutputTypeSig.Type == TYPE_ATOMIC || cxAtomicOutputTypeSig.Type == TYPE_POINTER_ATOMIC {
 		offset = cxAtomicOutputTypeSig.Offset
 	} else if cxAtomicOutputTypeSig.Type == TYPE_ARRAY_ATOMIC {
@@ -99,14 +97,7 @@ func wipeDeclarationMemory(prgrm *CXProgram, expr *CXExpression) error {
 	return nil
 }
 
-func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, globalInputs *[]CXValue, globalOutputs *[]CXValue, fp types.Pointer) error {
-	cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
-	if err != nil {
-		return err
-	}
-
-	cxAtomicOpOperator := prgrm.GetFunctionFromArray(cxAtomicOp.Operator)
-
+func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, cxAtomicOp *CXAtomicOperator, cxAtomicOpOperator *CXFunction, globalInputs *[]CXValue, globalOutputs *[]CXValue, fp types.Pointer) error {
 	inputs := cxAtomicOp.GetInputs(prgrm)
 	inputCount := len(inputs)
 	if inputCount > len(*globalInputs) {
@@ -123,6 +114,8 @@ func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, globalInputs 
 
 	argIndex := 0
 	for inputIndex := 0; inputIndex < inputCount; inputIndex++ {
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S0104.
 		inputTypeSignature := prgrm.GetCXTypeSignatureFromArray(inputs[inputIndex])
 		value := &inputValues[inputIndex]
 		value.TypeSignature = inputTypeSignature
@@ -130,8 +123,10 @@ func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, globalInputs 
 		offset := GetFinalOffset(prgrm, fp, nil, inputTypeSignature)
 		value.Offset = offset
 
-		var input *CXArgument = &CXArgument{}
+		var input *CXArgument
 		if inputTypeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
+			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+			// Now an arena getter, site S0106.
 			input = prgrm.GetCXArgFromArray(CXArgumentIndex(inputTypeSignature.Meta))
 
 			value.Type = input.Type
@@ -148,6 +143,8 @@ func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, globalInputs 
 	}
 
 	for outputIndex := 0; outputIndex < outputCount; outputIndex++ {
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S0107.
 		outputTypeSignature := prgrm.GetCXTypeSignatureFromArray(outputs[outputIndex])
 
 		value := &outputValues[outputIndex]
@@ -156,8 +153,10 @@ func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, globalInputs 
 		offset := GetFinalOffset(prgrm, fp, nil, outputTypeSignature)
 		value.Offset = offset
 
-		var output *CXArgument = &CXArgument{}
+		var output *CXArgument
 		if outputTypeSignature.Type == TYPE_CXARGUMENT_DEPRECATE {
+			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+			// Now an arena getter, site S0109.
 			output = prgrm.GetCXArgFromArray(CXArgumentIndex(outputTypeSignature.Meta))
 
 			value.Type = output.Type
@@ -175,16 +174,18 @@ func processBuiltInOperators(prgrm *CXProgram, expr *CXExpression, globalInputs 
 
 	OpcodeHandlers[cxAtomicOpOperator.AtomicOPCode](prgrm, inputValues, outputValues)
 
+	// Expr points into fn.Expressions and is valid for this step only.
+	for i := range inputValues {
+		inputValues[i].Expr = nil
+	}
+	for i := range outputValues {
+		outputValues[i].Expr = nil
+	}
+
 	return nil
 }
 
-func processNonAtomicOperators(prgrm *CXProgram, expr *CXExpression, fp types.Pointer) error {
-	cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
-	if err != nil {
-		return err
-	}
-
-	cxAtomicOpOperator := prgrm.GetFunctionFromArray(cxAtomicOp.Operator)
+func processNonAtomicOperators(prgrm *CXProgram, cxAtomicOp *CXAtomicOperator, cxAtomicOpOperator *CXFunction, fp types.Pointer) error {
 	//TODO: Is this only called for user defined functions?
 	/*
 	   It was not a native, so we need to create another call
@@ -218,16 +219,21 @@ func processNonAtomicOperators(prgrm *CXProgram, expr *CXExpression, fp types.Po
 
 	newCallOperatorInputs := newCall.Operator.GetInputs(prgrm)
 	for i, inputIdx := range cxAtomicOp.GetInputs(prgrm) {
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S0112.
 		input := prgrm.GetCXTypeSignatureFromArray(inputIdx)
-		var inp *CXArgument = &CXArgument{}
+		// An atomic input is passed by its signature only.
+		inpPassBy := 0
 		if input.Type == TYPE_CXARGUMENT_DEPRECATE {
-			inp = prgrm.GetCXArgFromArray(CXArgumentIndex(input.Meta))
+			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+			// Now an arena getter, site S0114.
+			inpPassBy = prgrm.GetCXArgFromArray(CXArgumentIndex(input.Meta)).PassBy
 		}
 
 		var byts []byte
 
 		finalOffset := GetFinalOffset(prgrm, fp, nil, input)
-		if input.PassBy == constants.PASSBY_REFERENCE || inp.PassBy == constants.PASSBY_REFERENCE {
+		if input.PassBy == constants.PASSBY_REFERENCE || inpPassBy == constants.PASSBY_REFERENCE {
 			// If we're referencing an inner element, like an element of a slice (&slc[0])
 			// or a field of a struct (&struct.fld) we no longer need to add
 			// the OBJECT_HEADER_SIZE to the offset
@@ -243,6 +249,8 @@ func processNonAtomicOperators(prgrm *CXProgram, expr *CXExpression, fp types.Po
 			byts = prgrm.Memory[finalOffset : finalOffset+size]
 		}
 
+		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+		// Now an arena getter, site S0115.
 		newCallOperatorInputTypeSignature := prgrm.GetCXTypeSignatureFromArray(newCallOperatorInputs[i])
 		// writing inputs to new stack frame
 		types.WriteSlice_byte(
@@ -273,7 +281,8 @@ func (call *CXCall) Call(prgrm *CXProgram, globalInputs *[]CXValue, globalOutput
 	*/
 
 	fn := call.Operator
-	expr := fn.Expressions[call.Line]
+	// A pointer, not a copy, so nothing escapes to the heap (VMALLOC-001, #407).
+	expr := &fn.Expressions[call.Line]
 	fp := call.FramePointer
 
 	if expr.Type == CX_LINE {
@@ -281,17 +290,21 @@ func (call *CXCall) Call(prgrm *CXProgram, globalInputs *[]CXValue, globalOutput
 		return nil
 	}
 
+	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+	// Now an arena getter, site S0116.
 	cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
 	if err != nil {
 		return err
 	}
+	// OBJMODEL: state.CXFunctionMng.CXFunctionGet(gid), phase 5 #352.
+	// Now an arena getter, site S0117.
 	cxAtomicOpOperator := prgrm.GetFunctionFromArray(cxAtomicOp.Operator)
 	// if it's a native, then we just process the arguments with execNative
 	//TODO: WHEN WOULD OPERATOR EVER BE NIL?
 	if cxAtomicOpOperator == nil {
 		// then it's a declaration
 		// wiping this declaration's memory (removing garbage)
-		err := wipeDeclarationMemory(prgrm, &expr)
+		err := wipeDeclarationMemory(prgrm, cxAtomicOp)
 		if err != nil {
 			return err
 		}
@@ -299,7 +312,7 @@ func (call *CXCall) Call(prgrm *CXProgram, globalInputs *[]CXValue, globalOutput
 		call.Line++
 	} else if cxAtomicOpOperator.IsBuiltIn() {
 		//TODO: SLICES ARE NON ATOMIC
-		err := processBuiltInOperators(prgrm, &expr, globalInputs, globalOutputs, fp)
+		err := processBuiltInOperators(prgrm, expr, cxAtomicOp, cxAtomicOpOperator, globalInputs, globalOutputs, fp)
 		if err != nil {
 			return err
 		}
@@ -307,7 +320,7 @@ func (call *CXCall) Call(prgrm *CXProgram, globalInputs *[]CXValue, globalOutput
 		call.Line++
 	} else {
 		//NON-ATOMIC OPERATOR
-		err := processNonAtomicOperators(prgrm, &expr, fp)
+		err := processNonAtomicOperators(prgrm, cxAtomicOp, cxAtomicOpOperator, fp)
 		if err != nil {
 			return err
 		}
@@ -317,7 +330,11 @@ func (call *CXCall) Call(prgrm *CXProgram, globalInputs *[]CXValue, globalOutput
 }
 
 // prgrm.CallStack = MakeCallStack(0)
+// OBJMODEL: state.CXCallMng.CXCallAlloc(), phase 4 #366.
+// Now a constructor, site S0118.
 func MakeCallStack(size int) []CXCall {
+	// OBJMODEL: state.CXCallMng (manager storage) or []CXCallGid, phase 4 #366.
+	// Now a slice of objects, site S0119.
 	return make([]CXCall, 0)
 	// return &CXCallStack{
 	// 	Calls: make([]*CXCall, size),

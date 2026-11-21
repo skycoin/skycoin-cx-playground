@@ -7,6 +7,8 @@
 
 package main 
 
+import "sys/string"
+
 // fib is the function which calculate the Fibonacci series
 // i32.lt(x,y),  Here x<y, the return true. 
 func fib (n i32) (out i32) {
@@ -27,7 +29,7 @@ var i i32
 // assign the values for the Fibonacci series 
 Fibonacci = 1
 
-    str.print("Fibonacci series: ")
+    string.PrintLine("Fibonacci series: ")
 
 for i=0; i32.lt(i, Fibonacci); i = i32.add(i, 1){
     i32.print(fib(i))

@@ -3,130 +3,11 @@ package ast
 import (
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t1-constants"
-	"github.com/skycoin/skycoin-cx/t2-globals"
+	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
+	"github.com/skycoin/skycoin-cx/t2-globals" // thin: only DBG_GOLANG_STACK_TRACE, FoundCompileErrors, HeapOffset; core globals, keep
 )
 
-type CXArgumentSlice struct {
-	// Lengths is used if the `CXArgument` defines an array or a
-	// slice. The number of dimensions for the array/slice is
-	// equal to `len(Lengths)`, while the contents of `Lengths`
-	// define the sizes of each dimension. In the case of a slice,
-	// `Lengths` only determines the number of dimensions and the
-	// sizes are all equal to 0 (these 0s are not used for any
-	// computation).
-	Lengths []int
-	IsSlice bool
-}
-
-// CXArgumentDebug ...
-type CXArgumentDebug struct {
-	FileName string
-	FileLine int
-}
-
-// CXArgumentStruct ...
-type CXArgumentStruct struct {
-}
-
-// CXArgumentPointer ...
-type CXArgumentPointer struct {
-}
-
 type CXArgumentIndex int
-
-// CXArgument is used to define local variables, global variables,
-// literals (strings, numbers), inputs and outputs to function
-// calls. All of the fields in this structure are determined at
-// compile time.
-type CXArgument struct {
-	// Name defines the name of the `CXArgument`. Most of the
-	// time, this field will be non-nil as this defines the name
-	// of a variable or parameter in source code, but some
-	// exceptions exist, such as in the case of literals
-	// (e.g. `4`, `"Hello world!"`, `[3]i32{1, 2, 3}`.)
-	Name  string
-	Index int
-
-	Package CXPackageIndex
-
-	// Lengths is used if the `CXArgument` defines an array or a
-	// slice. The number of dimensions for the array/slice is
-	// equal to `len(Lengths)`, while the contents of `Lengths`
-	// define the sizes of each dimension. In the case of a slice,
-	// `Lengths` only determines the number of dimensions and the
-	// sizes are all equal to 0 (these 0s are not used for any
-	// computation).
-	Lengths []types.Pointer
-
-	// DereferenceOperations is a slice of integers where each
-	// integer corresponds a `DEREF_*` constant (for example
-	// `DEREF_ARRAY`, `DEREF_POINTER`.). A dereference is a
-	// process where we consider the bytes at `Offset : Offset +
-	// TotalSize` as an address in memory, and we use that address
-	// to find the desired value (the referenced
-	// value).
-	DereferenceOperations []int
-
-	// DeclarationSpecifiers is a slice of integers where each
-	// integer corresponds a `DECL_*` constant (for example
-	// `DECL_ARRAY`, `DECL_POINTER`.). Declarations are used to
-	// create complex types such as `[5][]*Point` (an array of 5
-	// slices of pointers to struct instances of type
-	// `Point`).
-	DeclarationSpecifiers []int
-
-	// Indexes stores what indexes we want to access from the
-	// `CXArgument`. A non-nil `Indexes` means that the
-	// `CXArgument` is an index or a slice. The elements of
-	// `Indexes` can be any `CXArgument` (for example, literals
-	// and variables).
-	Indexes []CXTypeSignatureIndex
-
-	// Fields stores what fields are being accessed from the
-	// `CXArgument` and in what order. Whenever a `DEREF_FIELD` in
-	// `DereferenceOperations` is found, we consume a field from
-	// `Field` to determine the new offset to the desired
-	// value.
-	Fields []CXArgumentIndex
-
-	// Inputs defines the input parameters of a first-class
-	// function. The `CXArgument` is of type `TYPE_FUNC` if
-	// `ProgramInput` is non-nil.
-	Inputs []CXArgumentIndex
-
-	// Outputs defines the output parameters of a first-class
-	// function. The `CXArgument` is of type `TYPE_FUNC` if
-	// `ProgramOutput` is non-nil.
-	Outputs []CXArgumentIndex
-
-	// Type defines what's the basic or primitev type of the
-	// `CXArgument`. `Type` can be equal to any of the `TYPE_*`
-	// constants (e.g. `TYPE_STR`, `TYPE_I32`).
-	Type types.Code
-
-	PointerTargetType types.Code
-
-	// Size determines the size of the basic type. For example, if
-	// the `CXArgument` is of type `TYPE_STRUCT` (i.e. a
-	// user-defined type or struct) and the size of the struct
-	// representing the struct type is 10 bytes, then `Size == 10`.
-	Size types.Pointer
-
-	// Offset defines a relative memory offset (used in
-	// conjunction with the frame pointer), in the case of local
-	// variables, or it could define an absolute memory offset, in
-	// the case of global variables and literals. It is used by
-	// the CX virtual machine to find the bytes that represent the
-	// value of the `CXArgument`.
-	Offset types.Pointer
-
-	PassBy int // pass by value or reference
-
-	ArgDetails *CXArgumentDebug
-
-	StructType         *CXStruct
-	PreviouslyDeclared bool
-}
 
 func (arg CXArgument) IsPointer() bool {
 	return arg.Type == types.POINTER
@@ -175,6 +56,8 @@ Note: Low priority for deprecation
 // GetAssignmentElement ...
 func (arg *CXArgument) GetAssignmentElement(prgrm *CXProgram) *CXArgument {
 	if len(arg.Fields) > 0 {
+		// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+		// Now an arena getter, site S0068.
 		return prgrm.GetCXArgFromArray(arg.Fields[len(arg.Fields)-1]).GetAssignmentElement(prgrm)
 	}
 	return arg
@@ -185,6 +68,8 @@ func (arg *CXArgument) GetAssignmentElement(prgrm *CXProgram) *CXArgument {
 func (arg *CXArgument) GetType(prgrm *CXProgram) types.Code {
 	fieldCount := len(arg.Fields)
 	if fieldCount > 0 {
+		// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+		// Now an arena getter, site S0069.
 		return prgrm.GetCXArgFromArray(arg.Fields[fieldCount-1]).GetType(prgrm)
 	}
 
@@ -220,30 +105,6 @@ func (arg *CXArgument) SetType(typeCode types.Code) *CXArgument {
 	return arg
 }
 
-// AddInput adds input parameters to `arg` in case arg is of type `TYPE_FUNC`.
-func (arg *CXArgument) AddInput(prgrm *CXProgram, inp *CXArgument) *CXArgument {
-	if inp.Package == -1 {
-		inp.Package = arg.Package
-	}
-
-	inpIdx := prgrm.AddCXArgInArray(inp)
-	arg.Inputs = append(arg.Inputs, inpIdx)
-
-	return arg
-}
-
-// AddOutput adds output parameters to `arg` in case arg is of type `TYPE_FUNC`.
-func (arg *CXArgument) AddOutput(prgrm *CXProgram, out *CXArgument) *CXArgument {
-	if out.Package == -1 {
-		out.Package = arg.Package
-	}
-
-	outIdx := prgrm.AddCXArgInArray(out)
-	arg.Outputs = append(arg.Outputs, outIdx)
-
-	return arg
-}
-
 // MakePointer takes an already defined `CXArgument` and turns it into a pointer.
 // Only used once, deprecate
 // TODO: only used by HTTP, create a better module system
@@ -259,18 +120,23 @@ func MakePointer(arg *CXArgument) *CXArgument {
 // MakeStructParameter helper for creating a struct parameter. It creates a
 // `CXArgument` named `argName`, that represents a structure instane of
 // `strctName`, from package `pkgName`.
+// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+// Now a constructor, site S0072.
 func MakeStructParameter(prgrm *CXProgram, pkgName, strctName, argName string) *CXArgument {
-	pkg, err := prgrm.GetPackage(pkgName)
+	pkg, err := prgrm.GetPackage(prgrm.CXProgramNameIntern(pkgName))
 	if err != nil {
 		panic(err)
 	}
 
-	strct, err := pkg.GetStruct(prgrm, strctName)
+	strct, err := pkg.GetStruct(prgrm, prgrm.CXProgramNameIntern(strctName))
 	if err != nil {
 		panic(err)
 	}
 
-	arg := MakeArgument(argName, "", -1).SetType(types.STRUCT)
+	// Natives are shared by every program, so this argument belongs to none.
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S0073.
+	arg := nativeArgument(prgrm.CXProgramNameIntern(argName)).SetType(types.STRUCT)
 	// arg.DeclarationSpecifiers = append(arg.DeclarationSpecifiers, constants.DECL_STRUCT)
 	arg.Size = strct.GetStructSize(prgrm)
 	arg.StructType = strct
@@ -280,7 +146,11 @@ func MakeStructParameter(prgrm *CXProgram, pkgName, strctName, argName string) *
 
 // Slice Helper function for creating parameters for standard library operators.
 // The current standard library only uses basic types and slices. If more options are needed, modify this function
+// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+// Now a constructor, site S0074.
 func Slice(typeCode types.Code) *CXArgument {
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S0075.
 	arg := Param(typeCode)
 	arg.DeclarationSpecifiers = append(arg.DeclarationSpecifiers, constants.DECL_SLICE)
 	return arg
@@ -297,55 +167,58 @@ func Slice(typeCode types.Code) *CXArgument {
 // }
 
 // Param ...
+// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+// Now a constructor, site S0076.
 func Param(typeCode types.Code) *CXArgument {
-	arg := MakeArgument("", "", -1).SetType(typeCode)
+	// Natives are shared by every program, so this argument belongs to none.
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S0077.
+	arg := nativeArgument(stringpool.StringGidNil).SetType(typeCode)
 	// arg.IsLocalDeclaration = true
 	return arg
 }
 
-// MakeArgument ...
-func MakeArgument(name string, fileName string, fileLine int) *CXArgument {
+// nativeArgument makes an argument for a native. The natives are shared by
+// every program, so it lives on the heap, belongs to none and has no debug
+// record.
+// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+// Now a constructor, site S0078.
+func nativeArgument(name stringpool.StringGid) *CXArgument {
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a heap literal, site S0079.
 	return &CXArgument{
 		Name:    name,
 		Package: -1,
-		ArgDetails: &CXArgumentDebug{
-			FileName: fileName,
-			FileLine: fileLine,
-		},
-	}
-
-}
-
-// MakeField ...
-func MakeField(name string, typeCode types.Code, fileName string, fileLine int) *CXArgument {
-	return &CXArgument{
-		Name:    name,
-		Package: -1,
-		ArgDetails: &CXArgumentDebug{
-			FileName: fileName,
-			FileLine: fileLine,
-		},
-
-		Type: typeCode,
 	}
 }
 
-// MakeGlobal ...
-func MakeGlobal(name string, typeCode types.Code, fileName string, fileLine int) *CXArgument {
-	size := typeCode.Size()
-	global := &CXArgument{
-		Name:    name,
-		Package: -1,
-		ArgDetails: &CXArgumentDebug{
-			FileName: fileName,
-			FileLine: fileLine,
-		},
-		Type:   typeCode,
-		Size:   size,
-		Offset: globals.HeapOffset,
-	}
-	globals.HeapOffset += size
-	return global
+// MakeArgument allocates an argument named name in the CXArgumentMng of
+// prgrm, with a debug record for fileName and fileLine, and returns its Gid
+// and the pointer to fill it through.
+func MakeArgument(prgrm *CXProgram, name stringpool.StringGid, fileName SourceFileGid, fileLine int) (CXArgumentGid, *CXArgument) {
+	argDetailsGid := argumentDebugAlloc(prgrm, fileName, fileLine)
+	gid, arg := prgrm.AllocCXArgument()
+	arg.Name = name
+	arg.Package = -1
+	arg.ArgDetails = argDetailsGid
+	return gid, arg
+}
+
+// MakeField allocates an argument of type typeCode like MakeArgument.
+func MakeField(prgrm *CXProgram, name stringpool.StringGid, typeCode types.Code, fileName SourceFileGid, fileLine int) (CXArgumentGid, *CXArgument) {
+	gid, arg := MakeArgument(prgrm, name, fileName, fileLine)
+	arg.Type = typeCode
+	return gid, arg
+}
+
+// MakeGlobal allocates a global of type typeCode like MakeArgument and gives
+// it the next offset in the heap segment.
+func MakeGlobal(prgrm *CXProgram, name stringpool.StringGid, typeCode types.Code, fileName SourceFileGid, fileLine int) (CXArgumentGid, *CXArgument) {
+	gid, global := MakeField(prgrm, name, typeCode, fileName, fileLine)
+	global.Size = typeCode.Size()
+	global.Offset = globals.HeapOffset
+	globals.HeapOffset += global.Size
+	return gid, global
 }
 
 // ------------------------------------------------------------------------------------------
@@ -436,4 +309,29 @@ func IsTypePointerStruct(arg *CXArgument) bool {
 	}
 
 	return isThereDeclPointer && !IsThereDeclSlice && !arg.IsSlice() && len(arg.Lengths) == 0 && arg.StructType != nil && len(arg.DeclarationSpecifiers) >= 1 && arg.DeclarationSpecifiers[0] == constants.DECL_STRUCT
+}
+
+// argumentDebugAlloc allocates the debug record of an argument in prgrm's
+// CXArgumentDebugMng. A nil prgrm, for a native, gets CXArgumentDebugGidNil.
+func argumentDebugAlloc(prgrm *CXProgram, fileName SourceFileGid, fileLine int) CXArgumentDebugGid {
+	if prgrm == nil {
+		return CXArgumentDebugGidNil
+	}
+	manager := &prgrm.CxIrState.CXArgumentDebugMng
+	gid := manager.CXArgumentDebugAlloc()
+	details := manager.CXArgumentDebugGet(gid)
+	details.FileName = fileName
+	details.FileLine = fileLine
+	return gid
+}
+
+// CXArgumentDebugFileLine returns the file name and line that gid names in
+// prgrm, the name as text for diagnostics. A native parameter has none and
+// gets "" and -1, as Param gave it.
+func CXArgumentDebugFileLine(prgrm *CXProgram, gid CXArgumentDebugGid) (string, int) {
+	if gid == CXArgumentDebugGidNil {
+		return "", -1
+	}
+	details := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(gid)
+	return prgrm.CXProgramSourceFileText(details.FileName), details.FileLine
 }

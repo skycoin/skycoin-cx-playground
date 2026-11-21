@@ -140,6 +140,7 @@ var definitions []Type = []Type{
 
 type AllocatorHandler func(interface{}, Pointer) Pointer
 
+// VIOLATION: state outside State. Owner: t0-types; moves to CXProgramMng in phase 2.
 var Allocator AllocatorHandler
 
 func debugPanicIf(condition bool, error int) {
@@ -438,4 +439,14 @@ func WriteSlice_byte(memory []byte, offset Pointer, byts []byte) {
 	for c := Pointer(0); c < count; c++ {
 		memory[offset+c] = byts[c]
 	}
+}
+
+// TotalLength returns the number of elements in an array with the given lengths.
+func TotalLength(lengths []Pointer) Pointer {
+	total := Pointer(1)
+	for _, i := range lengths {
+		total *= i
+	}
+
+	return total
 }

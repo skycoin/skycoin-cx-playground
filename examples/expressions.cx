@@ -4,14 +4,16 @@
 //
 package main
 
+import "sys/string"
+
 // This is simple print function, that prints a string. 
 func sayHi () () {
-	str.print("Hi")
+	string.PrintLine("Hi")
 }
 
 // This function receive a string and print it. 
 func sayMyName (name str) () {
-	str.print(name)
+	string.PrintLine(name)
 }
 
 // This function return a string
@@ -42,7 +44,7 @@ func main () (out i32) {
 // recalling of defined functions
 	sayHi()
 	sayMyName("Homer")
-	str.print(returnName())
+	string.PrintLine(returnName())
 	a , s, m, d = multiReturn(20, 20)
 // print the returned i32 variables 
 	i32.print(a)

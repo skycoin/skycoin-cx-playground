@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/skycoin/skycoin-cx/t3-ast"
+
 	"github.com/skycoin/skycoin-cx/t4-actions"
 )
 
+// VIOLATION: state outside State. Owner: t8-cxparsingcompletor; moves to ConfigMng in phase 2.
 var DebugLexer bool
 
 func (yylex Lexer) Error(msg string) {
@@ -46,7 +49,12 @@ func (yylex *Lexer) Next() int {
 func NewLexer(rdr io.Reader) *Lexer {
 	lx := &Lexer{}
 	lx.init(rdr, func(l, c int, msg string) {
-		panic(fmt.Sprintf("[%d:%d] %s\n", l, c, msg))
+		// The REPL recovers this panic and keeps going.
+		if ast.InREPL {
+			panic(fmt.Sprintf("[%d:%d] %s\n", l, c, msg))
+		}
+		actions.AST.CXProgramCompileErrorAdd(ast.CompileErrorCodeMessage, actions.CurrentFile, l, ast.CompileErrorOperands{actions.AST.CXProgramCompileErrorText(msg)})
+		actions.AST.CXProgramCompileErrorExit()
 	})
 	return lx
 }

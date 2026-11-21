@@ -8,12 +8,13 @@ import (
 
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t1-constants"
-	"github.com/skycoin/skycoin-cx/t2-globals"
+	"github.com/skycoin/skycoin-cx/t2-globals" // thin: only FoundCompileErrors, SRCPATH; no depth gain
 	"github.com/skycoin/skycoin-cx/t3-ast"
 
-	"github.com/skycoin/skycoin-cx/t1-profiling"
+	"github.com/skycoin/skycoin-cx/t1-profiling" // thin: only CleanupAndExit, StartProfile, StopProfile; no depth gain
 	"github.com/skycoin/skycoin-cx/t4-actions"
-	cxpartialparsing "github.com/skycoin/skycoin-cx/t5-cxpartialparsing"
+	"github.com/skycoin/skycoin-cx/t5-cx-runtime-printer"                // thin: only PrinterCompileErrorsPrint; no depth gain
+	cxpartialparsing "github.com/skycoin/skycoin-cx/t5-cxpartialparsing" // thin: only CurrentFile, Parse, Program; no depth gain
 )
 
 /*
@@ -41,7 +42,7 @@ func ParseSourceCode(sourceCode []*os.File, fileNames []string) {
 	}
 
 	if err := ParseSourceStrings(sourceCodeStrings, fileNames); err != nil {
-		profiling.CleanupAndExit(constants.CX_COMPILATION_ERROR)
+		profiling.CleanupAndExit(types.CX_COMPILATION_ERROR)
 	}
 }
 
@@ -53,7 +54,10 @@ var ErrCompilation = errors.New("compilation error")
 // Unlike ParseSourceCode it returns on errors instead of exiting, so the
 // parser can be embedded in a long running process.
 func ParseSourceStrings(sourceCodeStrings []string, fileNames []string) error {
+	// The compile errors print on return, and before a panic of the compiler.
+	defer func() { printer.PrinterCompileErrorsPrint(actions.AST) }()
 	cxpartialparsing.Program = actions.AST
+	actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 
 	/*
 		We need to traverse the elements by hierarchy first add all the
@@ -67,6 +71,7 @@ func ParseSourceStrings(sourceCodeStrings []string, fileNames []string) error {
 	}
 
 	actions.AST = cxpartialparsing.Program
+	actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 
 	if globals.FoundCompileErrors || parseErrors > 0 {
 		return ErrCompilation
@@ -76,12 +81,18 @@ func ParseSourceStrings(sourceCodeStrings []string, fileNames []string) error {
 		Adding global variables `OS_ARGS` to the `os` (operating system)
 		package.
 	*/
-	if osPkg, err := actions.AST.GetPackage(constants.OS_PKG); err == nil {
-		if _, err := osPkg.GetGlobal(actions.AST, constants.OS_ARGS); err != nil {
-			arg0 := ast.MakeArgument(constants.OS_ARGS, "", -1).SetType(types.UNDEFINED)
+	if osPkg, err := actions.AST.GetPackage(actions.AST.CxIrState.CxIrStateNameOs); err == nil {
+		if _, err := osPkg.GetGlobal(actions.AST, actions.AST.CxIrState.CxIrStateNameOsArgs); err != nil {
+			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+			// Now a constructor call, site S1618.
+			_, arg0 := ast.MakeArgument(actions.AST, actions.AST.CxIrState.CxIrStateNameOsArgs, ast.SourceFileGidNil, -1)
+			arg0.SetType(types.UNDEFINED)
 			arg0.Package = ast.CXPackageIndex(osPkg.Index)
 
-			arg1 := ast.MakeArgument(constants.OS_ARGS, "", -1).SetType(types.STR)
+			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+			// Now a constructor call, site S1619.
+			_, arg1 := ast.MakeArgument(actions.AST, actions.AST.CxIrState.CxIrStateNameOsArgs, ast.SourceFileGidNil, -1)
+			arg1.SetType(types.STR)
 			arg1 = actions.DeclarationSpecifiers(arg1, []types.Pointer{0}, constants.DECL_BASIC)
 			arg1 = actions.DeclarationSpecifiers(arg1, []types.Pointer{0}, constants.DECL_SLICE)
 			actions.DeclareGlobalInPackage(actions.AST, osPkg, arg0, arg1, nil, false)
@@ -95,6 +106,7 @@ func ParseSourceStrings(sourceCodeStrings []string, fileNames []string) error {
 	*/
 
 	for i, source := range sourceCodeStrings {
+		actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 
 		/*
 			Because of an unkown reason, sometimes some CX programs
@@ -108,18 +120,20 @@ func ParseSourceStrings(sourceCodeStrings []string, fileNames []string) error {
 
 		b := bytes.NewBufferString(source)
 
+		actions.CurrentFile = ast.SourceFileGidNil
 		if len(fileNames) > 0 {
-			actions.CurrentFile = fileNames[i]
+			actions.CurrentFile = actions.AST.CXProgramSourceFileIntern(fileNames[i])
 		}
 
-		profiling.StartProfile(actions.CurrentFile)
+		profiling.StartProfile(actions.AST.CXProgramSourceFileText(actions.CurrentFile))
 
 		parseErrors += Passtwo(b)
 
-		profiling.StopProfile(actions.CurrentFile)
+		profiling.StopProfile(actions.AST.CXProgramSourceFileText(actions.CurrentFile))
 	}
 
 	profiling.StopProfile("4. passtwo")
+	actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 
 	if globals.FoundCompileErrors || parseErrors > 0 {
 		return ErrCompilation

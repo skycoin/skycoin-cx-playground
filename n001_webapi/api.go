@@ -54,7 +54,7 @@ func PackagesOfProgram(pg *ast.CXProgram) http.HandlerFunc {
 				panic(err)
 			}
 
-			pkgNames = append(pkgNames, pkg.Name)
+			pkgNames = append(pkgNames, pg.CXProgramNameText(pkg.Name))
 		}
 
 		//httputil.WriteJSON(w, req, http.StatusOK, pkgNames)
@@ -71,7 +71,7 @@ func ExportedSymbolsOfPackage(pg *ast.CXProgram, pkgName string) http.HandlerFun
 				panic(err)
 			}
 
-			if pkg.Name != pkgName {
+			if pg.CXProgramNameText(pkg.Name) != pkgName {
 				continue
 			}
 

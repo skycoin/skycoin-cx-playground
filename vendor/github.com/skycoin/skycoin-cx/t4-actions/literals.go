@@ -3,6 +3,7 @@ package actions
 import (
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t1-constants"
+	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 	"github.com/skycoin/skycoin/src/cipher/encoder"
 )
@@ -22,22 +23,27 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 		panic(err)
 	}
 
-	symName := generateTempVarName(constants.LOCAL_PREFIX)
+	symName := generateTempVarName(prgrm, constants.LOCAL_PREFIX)
 
-	slcVarExprCXLine := ast.MakeCXLineExpression(prgrm, CurrentFile, LineNo, LineStr)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S0980.
+	slcVarExprCXLine := MakeCXLineExpressionCurrent(prgrm)
 	// adding the declaration
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S0981.
 	slcVarExpr := ast.MakeAtomicOperatorExpression(prgrm, nil)
 	slcVarExprAtomicOpIdx := slcVarExpr.Index
 
 	prgrm.CXAtomicOps[slcVarExprAtomicOpIdx].Package = ast.CXPackageIndex(pkg.Index)
-	slcVar := ast.MakeArgument(symName, CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S0982.
+	_, slcVar := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
 	slcVar.SetType(typeCode)
 	slcVar = DeclarationSpecifiers(slcVar, []types.Pointer{0}, constants.DECL_SLICE)
 	slcVar.Package = ast.CXPackageIndex(pkg.Index)
 	slcVar.PreviouslyDeclared = true
 
-	typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, slcVar)
-	typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, slcVar)
 	prgrm.CXAtomicOps[slcVarExprAtomicOpIdx].AddOutput(prgrm, typeSigIdx)
 
 	result = append(result, *slcVarExprCXLine, *slcVarExpr)
@@ -47,10 +53,14 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 		if expr.Type == ast.CX_LINE {
 			continue
 		}
+		// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+		// Now an arena getter, site S0984.
 		exprAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
 		if err != nil {
 			panic(err)
 		}
+		// OBJMODEL: state.CXFunctionMng.CXFunctionGet(gid), phase 5 #352.
+		// Now an arena getter, site S0985.
 		exprAtomicOpOperator := prgrm.GetFunctionFromArray(exprAtomicOp.Operator)
 
 		exprCXLine, _ := prgrm.GetPreviousCXLine(exprs, i)
@@ -58,31 +68,41 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 		if expr.IsArrayLiteral() {
 			expr.ExpressionType = ast.CXEXPR_UNUSED
 
-			symInp := ast.MakeArgument(symName, CurrentFile, LineNo).SetType(typeCode)
+			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+			// Now a constructor call, site S0986.
+			_, symInp := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
+			symInp.SetType(typeCode)
 			symInp.Package = ast.CXPackageIndex(pkg.Index)
 
-			symOut := ast.MakeArgument(symName, CurrentFile, LineNo).SetType(typeCode)
+			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+			// Now a constructor call, site S0987.
+			_, symOut := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
+			symOut.SetType(typeCode)
 			symOut.Package = ast.CXPackageIndex(pkg.Index)
 
 			endPointsCounter++
 
-			symExprExprCXLine := ast.MakeCXLineExpression(prgrm, CurrentFile, LineNo, LineStr)
+			// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+			// Now a constructor call, site S0988.
+			symExprExprCXLine := MakeCXLineExpressionCurrent(prgrm)
+			// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+			// Now a constructor call, site S0989.
 			symExpr := ast.MakeAtomicOperatorExpression(prgrm, nil)
 			symExprAtomicOpIdx := symExpr.Index
 
 			prgrm.CXAtomicOps[symExprAtomicOpIdx].Package = ast.CXPackageIndex(pkg.Index)
-			typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symOut)
-			typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+			typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symOut)
 			prgrm.CXAtomicOps[symExprAtomicOpIdx].AddOutput(prgrm, typeSigIdx)
 
 			if exprAtomicOpOperator == nil {
 				// then it's a literal
+				// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
+				// Now an arena insert, site S0991.
 				opIdx := prgrm.AddNativeFunctionInArray(ast.Natives[constants.OP_APPEND])
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Operator = opIdx
 
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Inputs = nil
-				typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symInp)
-				typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+				typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symInp)
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].AddInput(prgrm, typeSigIdx)
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Inputs.Fields = append(prgrm.CXAtomicOps[symExprAtomicOpIdx].Inputs.Fields, exprAtomicOp.Outputs.Fields...)
 			} else {
@@ -93,9 +113,13 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 				var outArg *ast.CXArgument
 				var outTypeSigIdx ast.CXTypeSignatureIndex
 				if outTypeSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S0993.
 					outArg = prgrm.GetCXArgFromArray(ast.CXArgumentIndex(outTypeSig.Meta))
 
-					out := ast.MakeArgument(generateTempVarName(constants.LOCAL_PREFIX), exprCXLine.FileName, exprCXLine.LineNumber)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+					// Now a constructor call, site S0994.
+					_, out := ast.MakeArgument(prgrm, generateTempVarName(prgrm, constants.LOCAL_PREFIX), exprCXLine.FileName, exprCXLine.LineNumber)
 					out.SetType(outArg.Type)
 					out.PointerTargetType = outArg.PointerTargetType
 					out.StructType = outArg.StructType
@@ -103,16 +127,22 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 					out.PreviouslyDeclared = true
 					out.Package = ast.CXPackageIndex(pkg.Index)
 
-					typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, out)
-					outTypeSigIdx = prgrm.AddCXTypeSignatureInArray(typeSig)
+					outTypeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, out)
 				} else if outTypeSig.Type == ast.TYPE_ATOMIC || outTypeSig.Type == ast.TYPE_POINTER_ATOMIC {
-					var newTypeSig ast.CXTypeSignature
-					newTypeSig = *outTypeSig
-					newTypeSig.Name = generateTempVarName(constants.LOCAL_PREFIX)
+					_, newTypeSig := prgrm.AllocCXTypeSignatureCopy(outTypeSig)
+					newTypeSig.Name = generateTempVarName(prgrm, constants.LOCAL_PREFIX)
 					newTypeSig.Package = ast.CXPackageIndex(pkg.Index)
-					outTypeSigIdx = prgrm.AddCXTypeSignatureInArray(&newTypeSig)
+					outTypeSigIdx = newTypeSig.Index
 				} else {
 					panic("type is not known")
+				}
+
+				// MakeAtomicOperatorExpression above may have grown CXAtomicOps, so refetch.
+				// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+				// Now an arena getter, site S0999.
+				exprAtomicOp, err = prgrm.GetCXAtomicOp(expr.Index)
+				if err != nil {
+					panic(err)
 				}
 
 				exprAtomicOp.Outputs = nil
@@ -120,12 +150,13 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 				exprAtomicOp.AddOutput(prgrm, outTypeSigIdx)
 
 				result = append(result, expr)
+				// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
+				// Now an arena insert, site S1000.
 				opIdx := prgrm.AddNativeFunctionInArray(ast.Natives[constants.OP_APPEND])
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Operator = opIdx
 
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Inputs = nil
-				typeSig = ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symInp)
-				typeSigIdx = prgrm.AddCXTypeSignatureInArray(typeSig)
+				typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symInp)
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].AddInput(prgrm, typeSigIdx)
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].AddInput(prgrm, outTypeSigIdx)
 			}
@@ -135,30 +166,38 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 		}
 	}
 
-	symNameOutput := generateTempVarName(constants.LOCAL_PREFIX)
+	symNameOutput := generateTempVarName(prgrm, constants.LOCAL_PREFIX)
 
-	symOutput := ast.MakeArgument(symNameOutput, CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1002.
+	_, symOutput := ast.MakeArgument(prgrm, symNameOutput, CurrentFile, LineNo)
 	symOutput.SetType(typeCode)
 	symOutput.Package = ast.CXPackageIndex(pkg.Index)
 	symOutput.PreviouslyDeclared = true
 
-	symInput := ast.MakeArgument(symName, CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1003.
+	_, symInput := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
 	symInput.SetType(typeCode)
 	symInput.Package = ast.CXPackageIndex(pkg.Index)
 
-	symExprExprCXLine := ast.MakeCXLineExpression(prgrm, CurrentFile, LineNo, LineStr)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1004.
+	symExprExprCXLine := MakeCXLineExpressionCurrent(prgrm)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1005.
 	symExpr := ast.MakeAtomicOperatorExpression(prgrm, ast.Natives[constants.OP_IDENTITY])
+	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+	// Now an arena getter, site S1006.
 	symExprAtomicOp, err := prgrm.GetCXAtomicOp(symExpr.Index)
 	if err != nil {
 		panic(err)
 	}
 
 	symExprAtomicOp.Package = ast.CXPackageIndex(pkg.Index)
-	typeSig = ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symOutput)
-	typeSigIdx = prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symOutput)
 	symExprAtomicOp.AddOutput(prgrm, typeSigIdx)
-	typeSig = ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symInput)
-	typeSigIdx = prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symInput)
 	symExprAtomicOp.AddInput(prgrm, typeSigIdx)
 
 	// marking the output so multidimensional arrays identify the expressions
@@ -176,67 +215,104 @@ func SliceLiteralExpression(prgrm *ast.CXProgram, typeCode types.Code, exprs []a
 //	 structFields - fields of the struct.
 func PrimaryStructLiteral(prgrm *ast.CXProgram, structName string, structFields []ast.CXExpression) []ast.CXExpression {
 	var result []ast.CXExpression
+	structNameGid := prgrm.CXProgramNameIntern(structName)
 
 	if pkg, err := prgrm.GetCurrentPackage(); err == nil {
-		if strct, err := prgrm.GetStruct(structName, pkg.Name); err == nil {
+		if strct, err := prgrm.GetStruct(structNameGid, pkg.Name); err == nil {
 			for _, expr := range structFields {
 				if expr.Type == ast.CX_LINE {
 					continue
 				}
+				// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+				// Now an arena getter, site S1009.
 				cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
 				if err != nil {
 					panic(err)
 				}
 
+				// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+				// Now an arena getter, site S1010.
 				cxAtomicOpOutputTypeSig := prgrm.GetCXTypeSignatureFromArray(cxAtomicOp.GetOutputs(prgrm)[0])
 				if cxAtomicOpOutputTypeSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
 					cxAtomicOpOutputIdx := cxAtomicOpOutputTypeSig.Meta
-					name := prgrm.CXArgs[cxAtomicOpOutputIdx].Name
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1741.
+					name := prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Name
 
-					field := ast.MakeArgument(name, CurrentFile, LineNo)
-					field.Type = prgrm.CXArgs[cxAtomicOpOutputIdx].Type
-					field.PointerTargetType = prgrm.CXArgs[cxAtomicOpOutputIdx].PointerTargetType
+					// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+					// Now a constructor call, site S1011.
+					_, field := ast.MakeArgument(prgrm, name, CurrentFile, LineNo)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1742.
+					field.Type = prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Type
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1743.
+					field.PointerTargetType = prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).PointerTargetType
 					field.StructType = strct
 
-					prgrm.CXArgs[cxAtomicOpOutputIdx].Package = ast.CXPackageIndex(pkg.Index)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1744.
+					prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Package = ast.CXPackageIndex(pkg.Index)
 
-					if prgrm.CXArgs[cxAtomicOpOutputIdx].StructType == nil {
-						prgrm.CXArgs[cxAtomicOpOutputIdx].StructType = strct
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1745.
+					if prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).StructType == nil {
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1746.
+						prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).StructType = strct
 					}
 
-					prgrm.CXArgs[cxAtomicOpOutputIdx].Size = strct.GetStructSize(prgrm)
-					prgrm.CXArgs[cxAtomicOpOutputIdx].Name = structName
-					cxAtomicOpOutputTypeSig.Name = structName
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1747.
+					prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Size = strct.GetStructSize(prgrm)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1748.
+					prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Name = structNameGid
+					cxAtomicOpOutputTypeSig.Name = structNameGid
 
-					fieldIdx := prgrm.AddCXArgInArray(field)
-					prgrm.CXArgs[cxAtomicOpOutputIdx].Fields = append(prgrm.CXArgs[cxAtomicOpOutputIdx].Fields, fieldIdx)
+					fieldIdx := ast.CXArgumentIndex(field.Index)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+					// Now an arena getter, site S1749.
+					prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Fields = append(prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Fields, fieldIdx)
 				} else if cxAtomicOpOutputTypeSig.Type == ast.TYPE_ATOMIC {
 					// TODO: give proper change when we implement type_structs
 					// Looks like we have to convert the arg to type cx arg deprecate again
-					newCXArg := &ast.CXArgument{ArgDetails: &ast.CXArgumentDebug{FileName: CurrentFile, FileLine: LineNo}}
+					argDetailsGid := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugAlloc()
+					argDetails := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(argDetailsGid)
+					argDetails.FileName = CurrentFile
+					argDetails.FileLine = LineNo
+					_, newCXArg := prgrm.AllocCXArgument()
+					newCXArg.ArgDetails = argDetailsGid
 					newCXArg.Type = types.Code(cxAtomicOpOutputTypeSig.Meta)
 					newCXArg.Package = ast.CXPackageIndex(pkg.Index)
 					newCXArg.Offset = cxAtomicOpOutputTypeSig.Offset
 
 					newCXArg.StructType = strct
 					newCXArg.Size = strct.GetStructSize(prgrm)
-					newCXArg.Name = structName
+					newCXArg.Name = structNameGid
 
-					field := ast.MakeArgument(cxAtomicOpOutputTypeSig.Name, CurrentFile, LineNo)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+					// Now a constructor call, site S1015.
+					_, field := ast.MakeArgument(prgrm, cxAtomicOpOutputTypeSig.Name, CurrentFile, LineNo)
 					field.Type = types.Code(cxAtomicOpOutputTypeSig.Meta)
 					field.StructType = strct
-					fieldIdx := prgrm.AddCXArgInArray(field)
+					fieldIdx := ast.CXArgumentIndex(field.Index)
 
 					newCXArg.Fields = append(newCXArg.Fields, fieldIdx)
-					newCXArgIdx := prgrm.AddCXArgInArray(newCXArg)
+					newCXArgIdx := ast.CXArgumentIndex(newCXArg.Index)
 
-					cxAtomicOpOutputTypeSig.Name = structName
+					cxAtomicOpOutputTypeSig.Name = structNameGid
 					cxAtomicOpOutputTypeSig.Type = ast.TYPE_CXARGUMENT_DEPRECATE
 					cxAtomicOpOutputTypeSig.Meta = int(newCXArgIdx)
 				} else if cxAtomicOpOutputTypeSig.Type == ast.TYPE_POINTER_ATOMIC {
 					// TODO: give proper change when we implement type_structs
 					// Looks like we have to convert the arg to type cx arg deprecate again
-					newCXArg := &ast.CXArgument{ArgDetails: &ast.CXArgumentDebug{FileName: CurrentFile, FileLine: LineNo}}
+					argDetailsGid := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugAlloc()
+					argDetails := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(argDetailsGid)
+					argDetails.FileName = CurrentFile
+					argDetails.FileLine = LineNo
+					_, newCXArg := prgrm.AllocCXArgument()
+					newCXArg.ArgDetails = argDetailsGid
 					newCXArg.Type = types.Code(cxAtomicOpOutputTypeSig.Meta)
 					newCXArg.Package = ast.CXPackageIndex(pkg.Index)
 					newCXArg.Offset = cxAtomicOpOutputTypeSig.Offset
@@ -244,17 +320,19 @@ func PrimaryStructLiteral(prgrm *ast.CXProgram, structName string, structFields 
 
 					newCXArg.StructType = strct
 					newCXArg.Size = strct.GetStructSize(prgrm)
-					newCXArg.Name = structName
+					newCXArg.Name = structNameGid
 
-					field := ast.MakeArgument(cxAtomicOpOutputTypeSig.Name, CurrentFile, LineNo)
+					// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+					// Now a constructor call, site S1020.
+					_, field := ast.MakeArgument(prgrm, cxAtomicOpOutputTypeSig.Name, CurrentFile, LineNo)
 					field.Type = types.Code(cxAtomicOpOutputTypeSig.Meta)
 					field.StructType = strct
-					fieldIdx := prgrm.AddCXArgInArray(field)
+					fieldIdx := ast.CXArgumentIndex(field.Index)
 
 					newCXArg.Fields = append(newCXArg.Fields, fieldIdx)
-					newCXArgIdx := prgrm.AddCXArgInArray(newCXArg)
+					newCXArgIdx := ast.CXArgumentIndex(newCXArg.Index)
 
-					cxAtomicOpOutputTypeSig.Name = structName
+					cxAtomicOpOutputTypeSig.Name = structNameGid
 					cxAtomicOpOutputTypeSig.Type = ast.TYPE_CXARGUMENT_DEPRECATE
 					cxAtomicOpOutputTypeSig.Meta = int(newCXArgIdx)
 				} else {
@@ -284,37 +362,57 @@ func PrimaryStructLiteral(prgrm *ast.CXProgram, structName string, structFields 
 //	 structFields - fields of the struct.
 func PrimaryStructLiteralExternal(prgrm *ast.CXProgram, importName string, structName string, structFields []ast.CXExpression) []ast.CXExpression {
 	var result []ast.CXExpression
+	structNameGid := prgrm.CXProgramNameIntern(structName)
+	importNameGid := prgrm.CXProgramNameIntern(importName)
 	if pkg, err := prgrm.GetCurrentPackage(); err == nil {
-		if _, err := pkg.GetImport(prgrm, importName); err == nil {
-			if strct, err := prgrm.GetStruct(structName, importName); err == nil {
+		if _, err := pkg.GetImport(prgrm, importNameGid); err == nil {
+			if strct, err := prgrm.GetStruct(structNameGid, importNameGid); err == nil {
 				for _, expr := range structFields {
 					if expr.Type == ast.CX_LINE {
 						continue
 					}
+					// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+					// Now an arena getter, site S1023.
 					cxAtomicOp, err := prgrm.GetCXAtomicOp(expr.Index)
 					if err != nil {
 						panic(err)
 					}
 
+					// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
+					// Now an arena getter, site S1024.
 					cxAtomicOpOutputTypeSig := prgrm.GetCXTypeSignatureFromArray(cxAtomicOp.GetOutputs(prgrm)[0])
 					if cxAtomicOpOutputTypeSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
 						cxAtomicOpOutputIdx := cxAtomicOpOutputTypeSig.Meta
-						field := ast.MakeArgument("", CurrentFile, LineNo)
+						// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+						// Now a constructor call, site S1025.
+						_, field := ast.MakeArgument(prgrm, stringpool.StringGidNil, CurrentFile, LineNo)
 						field.SetType(types.IDENTIFIER)
-						field.Name = prgrm.CXArgs[cxAtomicOpOutputIdx].Name
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1750.
+						field.Name = prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Name
 
 						expr.ExpressionType = ast.CXEXPR_STRUCT_LITERAL
 
-						prgrm.CXArgs[cxAtomicOpOutputIdx].Package = ast.CXPackageIndex(pkg.Index)
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1751.
+						prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Package = ast.CXPackageIndex(pkg.Index)
 						// expr.ProgramOutput[0].Program = prgrm
 
-						prgrm.CXArgs[cxAtomicOpOutputIdx].StructType = strct
-						prgrm.CXArgs[cxAtomicOpOutputIdx].Size = strct.GetStructSize(prgrm)
-						prgrm.CXArgs[cxAtomicOpOutputIdx].Name = structName
-						cxAtomicOpOutputTypeSig.Name = structName
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1752.
+						prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).StructType = strct
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1753.
+						prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Size = strct.GetStructSize(prgrm)
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1754.
+						prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Name = structNameGid
+						cxAtomicOpOutputTypeSig.Name = structNameGid
 
-						fieldIdx := prgrm.AddCXArgInArray(field)
-						prgrm.CXArgs[cxAtomicOpOutputIdx].Fields = append(prgrm.CXArgs[cxAtomicOpOutputIdx].Fields, fieldIdx)
+						fieldIdx := ast.CXArgumentIndex(field.Index)
+						// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
+						// Now an arena getter, site S1755.
+						prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Fields = append(prgrm.GetCXArg(ast.CXArgumentIndex(cxAtomicOpOutputIdx)).Fields, fieldIdx)
 					} else if cxAtomicOpOutputTypeSig.Type == ast.TYPE_ATOMIC || cxAtomicOpOutputTypeSig.Type == ast.TYPE_POINTER_ATOMIC {
 						panic("type signature is type atomic")
 					} else {
@@ -353,21 +451,26 @@ func ArrayLiteralExpression(prgrm *ast.CXProgram, arraySizes []types.Pointer, ty
 		panic(err)
 	}
 
-	symName := generateTempVarName(constants.LOCAL_PREFIX)
+	symName := generateTempVarName(prgrm, constants.LOCAL_PREFIX)
 
-	arrVarExprCXLine := ast.MakeCXLineExpression(prgrm, CurrentFile, LineNo, LineStr)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1027.
+	arrVarExprCXLine := MakeCXLineExpressionCurrent(prgrm)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1028.
 	arrVarExpr := ast.MakeAtomicOperatorExpression(prgrm, nil)
 	arrVarExprAtomicOpIdx := arrVarExpr.Index
 
 	prgrm.CXAtomicOps[arrVarExprAtomicOpIdx].Package = ast.CXPackageIndex(pkg.Index)
-	arrVar := ast.MakeArgument(symName, CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1029.
+	_, arrVar := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
 	arrVar.SetType(typeCode)
 	arrVar = DeclarationSpecifiers(arrVar, arraySizes, constants.DECL_ARRAY)
 	arrVar.Package = ast.CXPackageIndex(pkg.Index)
 	arrVar.PreviouslyDeclared = true
 
-	typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, arrVar)
-	typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, arrVar)
 	prgrm.CXAtomicOps[arrVarExprAtomicOpIdx].AddOutput(prgrm, typeSigIdx)
 
 	result = append(result, *arrVarExprCXLine, *arrVarExpr)
@@ -377,16 +480,22 @@ func ArrayLiteralExpression(prgrm *ast.CXProgram, arraySizes []types.Pointer, ty
 		if expr.Type == ast.CX_LINE {
 			continue
 		}
+		// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+		// Now an arena getter, site S1031.
 		expression, err := prgrm.GetCXAtomicOp(expr.Index)
 		if err != nil {
 			panic(err)
 		}
+		// OBJMODEL: state.CXFunctionMng.CXFunctionGet(gid), phase 5 #352.
+		// Now an arena getter, site S1032.
 		expressionOperator := prgrm.GetFunctionFromArray(expression.Operator)
 
 		if expr.IsArrayLiteral() {
 			expr.ExpressionType = ast.CXEXPR_UNUSED
 
-			sym := ast.MakeArgument(symName, CurrentFile, LineNo)
+			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+			// Now a constructor call, site S1033.
+			_, sym := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
 			sym.SetType(typeCode)
 			sym.Package = ast.CXPackageIndex(pkg.Index)
 			sym.PreviouslyDeclared = true
@@ -395,32 +504,38 @@ func ArrayLiteralExpression(prgrm *ast.CXProgram, arraySizes []types.Pointer, ty
 			// index is always i32
 			// hence, always an atomic type
 
-			indexTypeSignature := &ast.CXTypeSignature{
-				Name:       idxArg.Name,
-				Type:       ast.TYPE_ATOMIC,
-				Meta:       int(idxArg.Type),
-				Offset:     idxArg.Offset, // important for this
-				Package:    idxArg.Package,
-				ArgDetails: idxArg.ArgDetails,
-			}
+			_, indexTypeSignature := prgrm.AllocCXTypeSignature()
+			indexTypeSignature.Name = idxArg.Name
+			indexTypeSignature.Type = ast.TYPE_ATOMIC
+			indexTypeSignature.Meta = int(idxArg.Type)
+			indexTypeSignature.Offset = idxArg.Offset // important for this
+			indexTypeSignature.Package = idxArg.Package
+			indexTypeSignature.ArgDetails = idxArg.ArgDetails
+			// The signature keeps the debug record of the dropped literal argument.
+			prgrm.ReleaseCXArg(ast.CXArgumentIndex(idxArg.Index))
 
-			indexTypeSignatureIdx := prgrm.AddCXTypeSignatureInArray(indexTypeSignature)
+			indexTypeSignatureIdx := indexTypeSignature.Index
 			endPointsCounter++
 
 			sym.Indexes = append(sym.Indexes, indexTypeSignatureIdx)
 			sym.DereferenceOperations = append(sym.DereferenceOperations, constants.DEREF_ARRAY)
 			sym.Lengths = arraySizes
 
-			symExprCXLine := ast.MakeCXLineExpression(prgrm, CurrentFile, LineNo, LineStr)
+			// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+			// Now a constructor call, site S1036.
+			symExprCXLine := MakeCXLineExpressionCurrent(prgrm)
+			// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+			// Now a constructor call, site S1037.
 			symExpr := ast.MakeAtomicOperatorExpression(prgrm, nil)
 			symExprAtomicOpIdx := symExpr.Index
 
-			typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, sym)
-			typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+			typeSigIdx := ast.AllocCXTypeSignatureOfCXArg(prgrm, sym)
 			prgrm.CXAtomicOps[symExprAtomicOpIdx].AddOutput(prgrm, typeSigIdx)
 
 			if expressionOperator == nil {
 				// then it's a literal
+				// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
+				// Now an arena insert, site S1039.
 				opIdx := prgrm.AddNativeFunctionInArray(ast.Natives[constants.OP_IDENTITY])
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Operator = opIdx
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Inputs = expression.Outputs
@@ -428,44 +543,57 @@ func ArrayLiteralExpression(prgrm *ast.CXProgram, arraySizes []types.Pointer, ty
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Operator = expression.Operator
 				prgrm.CXAtomicOps[symExprAtomicOpIdx].Inputs = expression.Inputs
 
-				typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, sym)
-				typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+				typeSigIdx := ast.AllocCXTypeSignatureOfCXArg(prgrm, sym)
 				// hack to get the correct lengths below
+				// MakeAtomicOperatorExpression above may have grown CXAtomicOps, so refetch.
+				// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+				// Now an arena getter, site S1041.
+				expression, err = prgrm.GetCXAtomicOp(expr.Index)
+				if err != nil {
+					panic(err)
+				}
 				expression.AddOutput(prgrm, typeSigIdx)
 			}
+			prgrm.ReleaseCXArgUnlessNamed(sym, typeSigIdx)
 			result = append(result, *symExprCXLine, *symExpr)
 		} else {
 			result = append(result, expr)
 		}
 	}
 
-	symNameOutput := generateTempVarName(constants.LOCAL_PREFIX)
+	symNameOutput := generateTempVarName(prgrm, constants.LOCAL_PREFIX)
 
-	symOutput := ast.MakeArgument(symNameOutput, CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1042.
+	_, symOutput := ast.MakeArgument(prgrm, symNameOutput, CurrentFile, LineNo)
 	symOutput.SetType(typeCode)
 	// symOutput.Lengths = append(symOutput.Lengths, arrSizes[len(arrSizes)-1])
 	symOutput.Lengths = arraySizes
 	symOutput.Package = ast.CXPackageIndex(pkg.Index)
 	symOutput.PreviouslyDeclared = true
 
-	symInput := ast.MakeArgument(symName, CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1043.
+	_, symInput := ast.MakeArgument(prgrm, symName, CurrentFile, LineNo)
 	symInput.SetType(typeCode)
 	// symInput.Lengths = append(symInput.Lengths, arrSizes[len(arrSizes)-1])
 	symInput.Lengths = arraySizes
 	symInput.Package = ast.CXPackageIndex(pkg.Index)
 	symInput.PreviouslyDeclared = true
 
-	symExprCXLine := ast.MakeCXLineExpression(prgrm, CurrentFile, LineNo, LineStr)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1044.
+	symExprCXLine := MakeCXLineExpressionCurrent(prgrm)
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1045.
 	symExpr := ast.MakeAtomicOperatorExpression(prgrm, ast.Natives[constants.OP_IDENTITY])
 	symExprAtomicOpIdx := symExpr.Index
 	prgrm.CXAtomicOps[symExprAtomicOpIdx].Package = ast.CXPackageIndex(pkg.Index)
 
-	typeSig = ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symOutput)
-	typeSigIdx = prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symOutput)
 	prgrm.CXAtomicOps[symExprAtomicOpIdx].AddOutput(prgrm, typeSigIdx)
 
-	typeSig = ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, symInput)
-	typeSigIdx = prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, symInput)
 	prgrm.CXAtomicOps[symExprAtomicOpIdx].AddInput(prgrm, typeSigIdx)
 
 	// symOutput.SynonymousTo = symInput.Name
@@ -490,19 +618,24 @@ func StructLiteralFields(prgrm *ast.CXProgram, structName string) ast.CXExpressi
 		panic(err)
 	}
 
-	arg := ast.MakeArgument("", CurrentFile, LineNo)
+	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
+	// Now a constructor call, site S1048.
+	_, arg := ast.MakeArgument(prgrm, stringpool.StringGidNil, CurrentFile, LineNo)
 	arg.SetType(types.IDENTIFIER)
-	arg.Name = structName
+	arg.Name = prgrm.CXProgramNameIntern(structName)
 	arg.Package = ast.CXPackageIndex(pkg.Index)
 
+	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
+	// Now a constructor call, site S1049.
 	expr := ast.MakeAtomicOperatorExpression(prgrm, nil)
+	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
+	// Now an arena getter, site S1050.
 	expression, err := prgrm.GetCXAtomicOp(expr.Index)
 	if err != nil {
 		panic(err)
 	}
 
-	typeSig := ast.GetCXTypeSignatureRepresentationOfCXArg(prgrm, arg)
-	typeSigIdx := prgrm.AddCXTypeSignatureInArray(typeSig)
+	typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, arg)
 	expression.AddOutput(prgrm, typeSigIdx)
 
 	expression.Package = ast.CXPackageIndex(pkg.Index)

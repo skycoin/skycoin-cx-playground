@@ -1,5 +1,7 @@
 package main
 
+import "sys/string"
+
 // defining struct
 type Foo struct {
 	number i32
@@ -9,8 +11,8 @@ type Foo struct {
 
 // method
 func (s *Foo) printName () { 
-    str.print("First name: ")
-    str.print((*s).name)
+    string.PrintLine("First name: ")
+    string.PrintLine((*s).name)
 }
 
 func main() {
@@ -26,7 +28,7 @@ func main() {
 		}
 	}
 
-	str.print("Array elements: ")
+	string.PrintLine("Array elements: ")
 	for i = 0; i < s.number; i++ {
 		i32.print(s.array[i])
 	}

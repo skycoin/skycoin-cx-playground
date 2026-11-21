@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/skycoin/skycoin-cx/t1-constants"
+	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
@@ -14,7 +14,7 @@ func OpReadStdin(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXVal
 	reader := bufio.NewReader(os.Stdin)
 	text, err := reader.ReadString('\n')
 	if err != nil {
-		panic(constants.CX_INTERNAL_ERROR)
+		panic(types.CX_INTERNAL_ERROR)
 	}
 
 	// text = strings.Trim(text, " \n")

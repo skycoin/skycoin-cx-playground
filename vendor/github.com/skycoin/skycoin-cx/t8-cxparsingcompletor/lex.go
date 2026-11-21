@@ -3,12 +3,11 @@ package parsingcompletor
 import (
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/skycoin/skycoin-cx/t1-constants"
+	"github.com/skycoin/skycoin-cx/t4-actions"
 )
 
 type Lexer struct {
@@ -27,6 +26,7 @@ type Lexer struct {
 	crash     bool //used for crash behaviour
 	colbefore bool //used for colon keywords
 
+	// VIOLATION: pointer at rest; becomes yySymTypeGid in phase 3.
 	tok *yySymType //symbol read. soon to be depracated for fully new cxgo
 }
 
@@ -172,7 +172,7 @@ func (s *Lexer) next() {
 	s.nlsemi = false
 	if s.eof {
 		if s.crash {
-			os.Exit(constants.CX_COMPILATION_ERROR)
+			actions.AST.CXProgramCompileErrorExit()
 		}
 		s.tok.yys = -1
 		return
@@ -180,11 +180,11 @@ func (s *Lexer) next() {
 redonext:
 	s.stop()
 	s.tok = &yySymType{}
-	s.tok.line = s.l + 1
 
 	for s.ch == ' ' || s.ch == '\t' || s.ch == '\n' && !nlsemi || s.ch == '\r' {
 		s.nextch()
 	}
+	s.tok.line = s.l + 1
 
 	s.start()
 
@@ -199,7 +199,7 @@ redonext:
 		s.eof = true
 		s.tok.yys = -1
 		if s.crash {
-			os.Exit(constants.CX_COMPILATION_ERROR)
+			actions.AST.CXProgramCompileErrorExit()
 		}
 	case '\n':
 		s.nextch()
@@ -461,7 +461,7 @@ func (s *Lexer) ident() {
 
 	// possibly a keyword
 	lit := s.segment()
-	s.tok = &yySymType{}
+	s.tok = &yySymType{line: s.tok.line, lineStr: s.tok.lineStr}
 	if len(lit) >= 2 {
 		if tok := KeywordMap[string(lit)]; tok != 0 {
 			switch tok {
@@ -674,7 +674,7 @@ func (s *Lexer) number(seenPoint bool) {
 		ok = false
 	}
 
-	s.tok = &yySymType{}
+	s.tok = &yySymType{line: s.tok.line, lineStr: s.tok.lineStr}
 	switch kind {
 	case INT_LITERAL:
 		result, err := strconv.ParseInt(yylex, base, 32)

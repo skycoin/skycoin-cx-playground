@@ -1,6 +1,8 @@
 //  Main Package is the one package which contain main function 
 package main
 
+import "sys/string"
+
 // foo is a function which return two values, one is i32 integer and second string 
 // 
 func foo () (out1 i32, out2 str) {
@@ -26,5 +28,5 @@ func main () {
 
 // to print the values on the terminal 
 	i32.print(num)
-	str.print(text)
+	string.PrintLine(text)
 }

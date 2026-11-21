@@ -22,7 +22,6 @@ import (
 	cxparsing "github.com/skycoin/skycoin-cx/t9-cxparsing"
 
 	"github.com/skycoin/skycoin-cx/t0-types"
-	constants "github.com/skycoin/skycoin-cx/t1-constants"
 	globals "github.com/skycoin/skycoin-cx/t2-globals"
 	cxast "github.com/skycoin/skycoin-cx/t3-ast"
 )
@@ -246,7 +245,7 @@ func compile(code string) error {
 	if err := cxparsing.ParseSourceStrings([]string{code}, []string{"main.cx"}); err != nil {
 		return err
 	}
-	if _, err := actions.AST.GetFunction(constants.MAIN_FUNC, constants.MAIN_PKG); err != nil {
+	if _, err := actions.AST.GetFunction(actions.AST.CxIrState.CxIrStateNameMain, actions.AST.CxIrState.CxIrStateNameMain); err != nil {
 		return fmt.Errorf("no main function in package main")
 	}
 	return cxparsing.AddInitFunction(actions.AST)
