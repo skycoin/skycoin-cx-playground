@@ -174,6 +174,7 @@ func Repl() {
 
 	// fi := bufio.NewReader(os.NewFile(0, "stdin"))
 	fi := bufio.NewReader(os.Stdin)
+	actions.AST.ProgramStdinInit(fi)
 	// scanner := bufio.NewScanner(os.Stdin)
 
 	for {

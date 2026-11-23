@@ -28,8 +28,6 @@ func RegisterPackage(prgrm *ast.CXProgram) {
 	cPkg, _ := prgrm.GetPackageFromArray(pkgIdx)
 
 	// PubKey
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1364.
 	_, pubkeyFld := ast.MakeArgument(prgrm, prgrm.CXProgramNameIntern("PubKey"), ast.SourceFileGidNil, -1)
 	pubkeyFld.SetType(types.UI8).SetPackage(cPkg)
 	pubkeyFld.DeclarationSpecifiers = append(pubkeyFld.DeclarationSpecifiers, constants.DECL_ARRAY)
@@ -38,8 +36,6 @@ func RegisterPackage(prgrm *ast.CXProgram) {
 	// pubkeyFld.TotalSize = 33                // 33 * 1 byte (ui8)
 
 	// SecKey
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1365.
 	_, seckeyFld := ast.MakeArgument(prgrm, prgrm.CXProgramNameIntern("SecKey"), ast.SourceFileGidNil, -1)
 	seckeyFld.SetType(types.UI8).SetPackage(cPkg)
 	seckeyFld.DeclarationSpecifiers = append(seckeyFld.DeclarationSpecifiers, constants.DECL_ARRAY)

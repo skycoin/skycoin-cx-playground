@@ -2,6 +2,7 @@ package opcodes
 
 import (
 	"github.com/skycoin/skycoin-cx/t0-types"
+	"github.com/skycoin/skycoin-cx/t1-constants"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
@@ -32,12 +33,12 @@ func opSliceLen(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 		// Now an arena getter, site S1311.
 		arrDetails := prgrm.GetCXTypeSignatureArrayFromArray(inputs[0].TypeSignature.Meta)
 		sliceLen = arrDetails.Lengths[len(arrDetails.Indexes)]
-	} else if inputs[0].TypeSignature.Type == ast.TYPE_SLICE_ATOMIC {
+	} else if inputs[0].TypeSignature.Type == ast.TYPE_SLICE_ATOMIC || inputs[0].TypeSignature.Type == ast.TYPE_POINTER_SLICE_ATOMIC && inputs[0].TypeSignature.IsDeref {
 		sliceOffset := types.Read_ptr(prgrm.Memory, inputs[0].Offset)
 		if sliceOffset > 0 && sliceOffset.IsValid() {
 			sliceLen = ast.GetSliceLen(prgrm, sliceOffset)
 		}
-	} else if inputs[0].TypeSignature.Type == ast.TYPE_STRUCT {
+	} else if inputs[0].TypeSignature.Type == ast.TYPE_STRUCT || inputs[0].TypeSignature.Type == ast.TYPE_POINTER_STRUCT {
 		// OBJMODEL: state.CXTypeSignature_StructMng.CXTypeSignature_StructGet(gid), phase 5 #322.
 		// Now an arena getter, site S1312.
 		structDetails := prgrm.GetCXTypeSignatureStructFromArray(inputs[0].TypeSignature.Meta)
@@ -93,7 +94,7 @@ func opSliceAppend(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXV
 		inp0Type = types.Code(sliceDetails.Meta)
 
 		input0IsSlice = true
-	} else if inputs[0].TypeSignature.Type == ast.TYPE_STRUCT {
+	} else if inputs[0].TypeSignature.Type == ast.TYPE_STRUCT || inputs[0].TypeSignature.Type == ast.TYPE_POINTER_STRUCT {
 		inp0Type = types.STRUCT
 
 		// OBJMODEL: state.CXTypeSignature_StructMng.CXTypeSignature_StructGet(gid), phase 5 #322.
@@ -148,7 +149,7 @@ func opSliceAppend(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXV
 		sliceDetails := prgrm.GetCXTypeSignatureArrayFromArray(outputs[0].TypeSignature.Meta)
 		out0Type = types.Code(sliceDetails.Meta)
 		outputIsSlice = true
-	} else if outputs[0].TypeSignature.Type == ast.TYPE_STRUCT {
+	} else if outputs[0].TypeSignature.Type == ast.TYPE_STRUCT || outputs[0].TypeSignature.Type == ast.TYPE_POINTER_STRUCT {
 		out0Type = types.STRUCT
 
 		// OBJMODEL: state.CXTypeSignature_StructMng.CXTypeSignature_StructGet(gid), phase 5 #322.
@@ -209,7 +210,13 @@ func opSliceAppend(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXV
 		if inp0Type != inpType {
 			panic(types.CX_RUNTIME_INVALID_ARGUMENT)
 		}
-		if inpType == types.STR || inpType == types.AFF {
+		if ast.CXTypeSignaturePassBy(prgrm, input.TypeSignature) == constants.PASSBY_REFERENCE {
+			// append(ps, &x) appends the address of x.
+			var obj [types.POINTER_SIZE]byte
+			types.Write_ptr(obj[:], 0, ast.PointerOfAddress(prgrm, input.Offset))
+			ast.SliceAppendWrite(prgrm, outputSliceOffset, obj[:], inputSliceLen+types.Cast_int_to_ptr(i))
+		} else if (inpType == types.STR || inpType == types.AFF) && eltSize == types.POINTER_SIZE {
+			// An array of str, as [][2]str appends, is copied whole below.
 			var obj [types.POINTER_SIZE]byte
 			types.Write_ptr(obj[:], 0, types.Read_ptr(prgrm.Memory, input.Offset))
 			ast.SliceAppendWrite(prgrm, outputSliceOffset, obj[:], inputSliceLen+types.Cast_int_to_ptr(i))

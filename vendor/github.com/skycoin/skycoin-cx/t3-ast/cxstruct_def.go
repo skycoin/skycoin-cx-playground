@@ -11,4 +11,10 @@ type CXStruct struct {
 
 	// Contents
 	Fields []CXTypeSignatureIndex // The fields of the struct
+
+	// Debugging, the position of the name of a declared type, line 0 before
+	// pass one declares it
+	FileName   SourceFileGid
+	FileLine   int
+	FileColumn int
 }

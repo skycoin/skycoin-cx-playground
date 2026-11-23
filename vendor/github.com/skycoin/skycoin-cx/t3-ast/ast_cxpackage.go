@@ -196,29 +196,60 @@ func (pkg *CXPackage) RemoveImport(impName stringpool.StringGid) {
 	}
 }
 
-// AddFunction ...
+// AddFunction adds fn to pkg. A second function of the same name is an
+// error and stays out of pkg.Functions, so the first keeps the name as in Go.
 func (pkg *CXPackage) AddFunction(prgrm *CXProgram, fn *CXFunction) (*CXPackage, CXFunctionIndex) {
-	if _, ok := pkg.Functions[fn.Name]; ok {
-		prgrm.CXProgramCompileErrorAdd(CompileErrorCodeFunctionRedeclaration, fn.FileName, fn.FileLine, CompileErrorOperands{})
-	}
+	return pkg, pkg.addFunction(prgrm, fn, CompileErrorCodeRedeclaredBlock)
+}
 
+func (pkg *CXPackage) addFunction(prgrm *CXProgram, fn *CXFunction, code CompileErrorCode) CXFunctionIndex {
 	fn.Package = CXPackageIndex(pkg.Index)
 
 	// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
 	// Now an arena insert, site S0178.
 	fnIdx := prgrm.AddFunctionInArray(fn)
-	pkg.Functions[fn.Name] = fnIdx
+	if firstIdx, ok := pkg.Functions[fn.Name]; ok {
+		first := prgrm.GetFunctionFromArray(firstIdx)
+		column := fn.FileColumn
+		if column == 0 {
+			column = prgrm.CXProgramCompileErrorColumn(fn.FileName, fn.FileLine)
+		}
+		prgrm.CXProgramCompileErrorAddPosition(code, fn.FileName, fn.FileLine, column, CompileErrorOperands{int64(fn.Name), int64(first.FileName), int64(first.FileLine), int64(first.FileColumn)})
+	} else {
+		pkg.Functions[fn.Name] = fnIdx
+	}
 	pkg.CurrentFunction = fnIdx
 
-	return pkg, fnIdx
+	return fnIdx
 }
 
 // AddMethod adds fn, the method methodName of the struct receiverName. The
 // name of fn is "receiverName.methodName", see CXProgramMethodNameIntern.
 func (pkg *CXPackage) AddMethod(prgrm *CXProgram, fn *CXFunction, receiverName stringpool.StringGid, methodName stringpool.StringGid) (*CXPackage, CXFunctionIndex) {
-	_, fnIdx := pkg.AddFunction(prgrm, fn)
-	pkg.Methods[CXPackageMethodKey{CXPackageMethodKeyStruct: receiverName, CXPackageMethodKeyMethod: methodName}] = fnIdx
+	key := CXPackageMethodKey{CXPackageMethodKeyStruct: receiverName, CXPackageMethodKeyMethod: methodName}
+	_, declared := pkg.Methods[key]
+	fnIdx := pkg.addFunction(prgrm, fn, CompileErrorCodeMethodRedeclared)
+	if !declared {
+		pkg.Methods[key] = fnIdx
+	}
 	return pkg, fnIdx
+}
+
+// FunctionDeclarationAt returns the function declared at file, line and
+// column with the name and package of fnIdx. It is fnIdx unless the name was
+// declared twice, or for a line of 0.
+func (prgrm *CXProgram) FunctionDeclarationAt(fnIdx CXFunctionIndex, file SourceFileGid, line int, column int) CXFunctionIndex {
+	fn := prgrm.GetFunctionFromArray(fnIdx)
+	if line == 0 || fn.FileName == file && fn.FileLine == line && fn.FileColumn == column {
+		return fnIdx
+	}
+	for index := range prgrm.CXFunctions {
+		other := &prgrm.CXFunctions[index]
+		if other.Name == fn.Name && other.Package == fn.Package && other.FileName == file && other.FileLine == line && other.FileColumn == column {
+			return CXFunctionIndex(index)
+		}
+	}
+	return fnIdx
 }
 
 // RemoveFunction ...

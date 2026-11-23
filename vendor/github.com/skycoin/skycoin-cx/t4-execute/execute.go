@@ -77,7 +77,7 @@ func feedOSArgs(cxprogram *ast.CXProgram, args []string) error {
 		argsOffset := types.Pointer(0)
 		if osGlbl, err := osPkg.GetGlobal(cxprogram, cxprogram.CxIrState.CxIrStateNameOsArgs); err == nil {
 			for _, arg := range args {
-				argOffset := types.AllocWrite_obj_data(cxprogram, cxprogram.Memory, []byte(arg))
+				argOffset := ast.AllocateStr(cxprogram, arg)
 
 				var argOffsetBytes [types.POINTER_SIZE]byte
 				types.Write_ptr(argOffsetBytes[:], 0, argOffset)

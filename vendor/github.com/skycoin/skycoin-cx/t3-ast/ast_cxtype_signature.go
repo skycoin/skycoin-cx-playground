@@ -61,7 +61,7 @@ func (typeSignature *CXTypeSignature) GetSize(prgrm *CXProgram, IsForUpdateSymbo
 		// Now an arena getter, site S0273.
 		arrDetails := prgrm.GetCXTypeSignatureArrayFromArray(typeSignature.Meta)
 		if len(arrDetails.Indexes) > 0 {
-			return types.Code(arrDetails.Meta).Size()
+			return indexedValueSize(arrDetails)
 		}
 
 		return typeSignature.GetArraySize(prgrm)
@@ -70,7 +70,7 @@ func (typeSignature *CXTypeSignature) GetSize(prgrm *CXProgram, IsForUpdateSymbo
 		// Now an arena getter, site S0274.
 		arrDetails := prgrm.GetCXTypeSignatureArrayFromArray(typeSignature.Meta)
 		if typeSignature.IsDeref && len(arrDetails.Indexes) > 0 {
-			return types.Code(arrDetails.Meta).Size()
+			return indexedValueSize(arrDetails)
 		} else if typeSignature.IsDeref {
 			return typeSignature.GetArraySize(prgrm)
 		}
@@ -81,7 +81,10 @@ func (typeSignature *CXTypeSignature) GetSize(prgrm *CXProgram, IsForUpdateSymbo
 		// Now an arena getter, site S0275.
 		sliceDetails := prgrm.GetCXTypeSignatureArrayFromArray(typeSignature.Meta)
 
-		if typeSignature.IsDeref || len(sliceDetails.Indexes) > 0 {
+		if len(sliceDetails.Indexes) > 0 {
+			return indexedValueSize(sliceDetails)
+		}
+		if typeSignature.IsDeref {
 			return types.Code(sliceDetails.Meta).Size()
 		}
 
@@ -91,10 +94,11 @@ func (typeSignature *CXTypeSignature) GetSize(prgrm *CXProgram, IsForUpdateSymbo
 		// OBJMODEL: state.CXTypeSignature_ArrayMng.CXTypeSignature_ArrayGet(gid), phase 5 #317.
 		// Now an arena getter, site S0276.
 		sliceDetails := prgrm.GetCXTypeSignatureArrayFromArray(typeSignature.Meta)
-		if typeSignature.IsDeref || len(sliceDetails.Indexes) > 0 {
-			return types.Code(sliceDetails.Meta).Size()
+		if len(sliceDetails.Indexes) > 0 {
+			return indexedValueSize(sliceDetails)
 		}
 
+		// *p without an index is the slice header pointer, like p itself.
 		return types.POINTER.Size()
 	case TYPE_STRUCT:
 		// OBJMODEL: state.CXTypeSignature_StructMng.CXTypeSignature_StructGet(gid), phase 5 #322.
@@ -680,6 +684,14 @@ func AllocCXTypeSignatureOfCXArgForStructs(prgrm *CXProgram, cxArgument *CXArgum
 	return newCXTypeSignature.Index
 }
 
+// RetypeCXTypeSignatureOfCXArg gives typeSig, which names cxArgument, the
+// signature type of cxArgument once its type is known, as x := v learns it.
+func RetypeCXTypeSignatureOfCXArg(prgrm *CXProgram, typeSig *CXTypeSignature, cxArgument *CXArgument) {
+	if fillCXTypeSignatureOfCXArg(prgrm, typeSig, cxArgument) {
+		typeSig.Offset = cxArgument.Offset
+	}
+}
+
 // AllocCXTypeSignatureOfCXArg allocates the signature of cxArgument in the
 // program's CXTypeSignatureMng and returns its slot. An argument with no
 // signature type of its own is named by the signature, and a heap argument
@@ -762,4 +774,22 @@ func (typeSignature *CXTypeSignature) GetOffset(prgrm *CXProgram) types.Pointer 
 		return prgrm.GetCXArg(CXArgumentIndex(typeSignature.Meta)).Offset
 	}
 	return typeSignature.Offset
+}
+
+// CXTypeSignaturePassBy is the PassBy of sig, read from its argument when
+// sig is a TYPE_CXARGUMENT_DEPRECATE.
+func CXTypeSignaturePassBy(prgrm *CXProgram, sig *CXTypeSignature) int {
+	if sig.Type == TYPE_CXARGUMENT_DEPRECATE {
+		return prgrm.GetCXArgFromArray(CXArgumentIndex(sig.Meta)).PassBy
+	}
+	return sig.PassBy
+}
+
+// indexedValueSize returns the size of the value an indexed array or slice
+// reads. r[1] of a [2][3]i32 is a [3]i32 and m[0] of a [][]i32 a slice.
+func indexedValueSize(details *CXTypeSignature_Array) types.Pointer {
+	if len(details.Indexes) >= len(details.Lengths) {
+		return types.Code(details.Meta).Size()
+	}
+	return ValueSizeOfLengths(details.Lengths[len(details.Indexes):], types.Code(details.Meta).Size())
 }

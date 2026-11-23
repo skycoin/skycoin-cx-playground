@@ -22,7 +22,30 @@ const LanguageVersionCurrent int64 = 2611200002
 
 const NON_ASSIGN_PREFIX = "nonAssign"
 const LOCAL_PREFIX = "*tmp"
+
+// SLICE_LITERAL_PREFIX names the slice a slice literal appends its elements
+// to. It starts with LOCAL_PREFIX, so the slice is a temp.
+const SLICE_LITERAL_PREFIX = LOCAL_PREFIX + "slc"
 const LABEL_PREFIX = "*lbl"
+
+// RESULT_NAME names the result of func f() T, which has no name in the source.
+const RESULT_NAME = "*result"
+
+// ELEMENT_PREFIX names the variable that holds a struct literal element of a
+// slice literal. It is not a temp, so its field assignments are typed normally.
+const ELEMENT_PREFIX = "*elt"
+
+// ARRAY_ELEMENT_PREFIX names the element variable of an array literal. It starts
+// with ELEMENT_PREFIX, so the element is typed as a slice literal element.
+const ARRAY_ELEMENT_PREFIX = ELEMENT_PREFIX + "arr"
+
+// METHOD_RESULT_PREFIX names the variable that holds the result of a method
+// call used as a value. It is not a temp, so a read of it is looked up.
+const METHOD_RESULT_PREFIX = "*mrs"
+
+// MULTIPLE_VALUE_PREFIX names the variable that holds one value of a, b = x, y
+// until every value is computed.
+const MULTIPLE_VALUE_PREFIX = "*mva"
 
 // Used in `PrintProgram` to represent literals (`CXArgument`s with no name).
 const LITERAL_PLACEHOLDER = "*lit"
@@ -43,6 +66,10 @@ var MIN_HEAP_FREE_RATIO float32 = 0.4
 var MAX_HEAP_FREE_RATIO float32 = 0.7
 
 const NULL_HEAP_ADDRESS_OFFSET = types.POINTER_SIZE
+
+// ESCAPE_OFFSET_FLAG marks the offset of a local that lives in a heap object.
+// Memory stays below it, see ast.OffsetEscaped.
+const ESCAPE_OFFSET_FLAG types.Pointer = 1 << 31
 const NULL_HEAP_ADDRESS = types.Pointer(0)
 const SLICE_HEADER_SIZE = 2 * types.POINTER_SIZE
 

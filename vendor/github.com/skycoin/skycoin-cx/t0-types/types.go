@@ -86,6 +86,8 @@ const (
 
 	UNDEFINED
 	IDENTIFIER
+	// INVALID types a placeholder for a value whose compile error is recorded.
+	INVALID
 
 	COUNT
 )
@@ -136,6 +138,7 @@ var definitions []Type = []Type{
 	{"aff", InvalidPointer, false},
 	{"und", InvalidPointer, false},
 	{"ident", POINTER_SIZE, false}, // TODO:PTR use InvalidPointer to track addressing issues.
+	{"invalid type", 0, false},
 }
 
 type AllocatorHandler func(interface{}, Pointer) Pointer

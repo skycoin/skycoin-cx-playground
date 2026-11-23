@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/0magnet/bottle v0.0.1-0.20261028202309-2b922f28f74e
 	github.com/prashantv/gostub v1.0.0
-	github.com/skycoin/skycoin-cx v0.0.0-20261121221747-3d37e3e47783
+	github.com/skycoin/skycoin-cx v0.0.0-20261123002813-df4c987910ae
 )
 
 require (

@@ -2,25 +2,32 @@ package cxparsering
 
 import (
 	"bufio"
+	"errors"
+	"io"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	cxpackages "github.com/skycoin/skycoin-cx/t0-packages" // thin: only IsBuiltinImport; no depth gain
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t0-util"
 	"github.com/skycoin/skycoin-cx/t1-profiling" // thin: only CleanupAndExit, StartProfile, StopProfile; no depth gain
-	"github.com/skycoin/skycoin-cx/t2-globals"   // thin: only FoundCompileErrors, SRCPATH; no depth gain
+	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
+	"github.com/skycoin/skycoin-cx/t2-globals" // thin: only FoundCompileErrors, SRCPATH; no depth gain
 	"github.com/skycoin/skycoin-cx/t3-ast"
 	"github.com/skycoin/skycoin-cx/t4-actions"
-	"github.com/skycoin/skycoin-cx/t5-cx-runtime-printer"                // thin: only PrinterCompileErrorsPrint; no depth gain
 	cxpartialparsing "github.com/skycoin/skycoin-cx/t5-cxpartialparsing" // thin: only CurrentFile, Parse, Program; no depth gain
 )
 
 // preliminarystage performs a first pass for the CX cxgo. Globals, packages and
 // custom types are added to `cxpartialparsing.Program`.
-func Preliminarystage(srcStrs, srcNames []string) int {
+// It returns the number of syntax errors and the packages the files declare.
+func Preliminarystage(srcStrs, srcNames []string) (int, []*ast.CXPackage) {
 	var prePkg *ast.CXPackage
+	var packages []*ast.CXPackage
 	parseErrors := 0
 
 	reMultiCommentOpen := regexp.MustCompile(`/\*`)
@@ -100,6 +107,9 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 					} else {
 						prePkg = pkg
 					}
+					if !slices.Contains(packages, prePkg) {
+						packages = append(packages, prePkg)
+					}
 				}
 			}
 
@@ -113,9 +123,8 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 				}
 
 				if match := reStrctName.FindStringSubmatch(string(line)); match != nil {
-					if prePkg == nil {
-						cxpartialparsing.Program.CXProgramCompileErrorAdd(ast.CompileErrorCodeNoPackageDefined, cxpartialparsing.Program.CXProgramSourceFileIntern(srcName), lineno, ast.CompileErrorOperands{})
-					} else if _, err := cxpartialparsing.Program.GetStruct(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1]), prePkg.Name); err != nil {
+					// sourcesWithPackageClause dropped every file without a package clause.
+					if _, err := cxpartialparsing.Program.GetStruct(cxpartialparsing.Program.CXProgramNameIntern(match[len(match)-1]), prePkg.Name); err != nil {
 						// then it hasn't been added
 						// OBJMODEL: state.CXStructMng.CXStructAlloc(), phase 4 #336.
 						// Now a constructor call, site S1623.
@@ -140,9 +149,11 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 		var inBlock int
 		var commentedCode bool
 
+		var lineno int
 		scanner := bufio.NewScanner(strings.NewReader(source))
 		for scanner.Scan() {
 			line := scanner.Bytes()
+			lineno++
 
 			// we need to ignore function bodies
 			// it'll also ignore struct declaration's bodies, but this doesn't matter
@@ -173,17 +184,18 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 					continue
 				}
 
-				if match := reImpName.FindStringSubmatch(string(line)); match != nil {
-					pkgName := match[len(match)-1]
+				if match := reImpName.FindSubmatchIndex(line); match != nil {
+					pkgName := string(line[match[len(match)-2]:match[len(match)-1]])
 					// Checking if `pkgName` already exists and if it's not a standard library package.
-					if _, err := cxpartialparsing.Program.GetPackage(cxpartialparsing.Program.CXProgramNameIntern(pkgName)); err != nil && !cxpackages.IsBuiltinImport(pkgName) {
-						_, sourceCode, fileNames, err := util.ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, pkgName)}, false)
+					if _, err := cxpartialparsing.Program.GetPackage(preliminaryImportIdent(cxpartialparsing.Program, pkgName)); err != nil && !cxpackages.IsBuiltinImport(pkgName) && !cxpartialparsing.Program.CXProgramImportFailed(preliminaryImportIdent(cxpartialparsing.Program, pkgName)) {
+						dir := filepath.Join(globals.SRCPATH, pkgName)
+						_, sourceCode, fileNames, err := util.ParseArgsForCX([]string{dir}, false)
 						if err != nil {
-							printer.PrinterCompileErrorsPrint(cxpartialparsing.Program)
-							println(err.Error())
-							return parseErrors + 1
+							// The column is the opening quote of the path.
+							preliminaryImportFailed(cxpartialparsing.Program, pkgName, srcNames[i], lineno, match[len(match)-2], preliminaryImportReason(dir, err))
+							continue
 						}
-						ParseSourceCode(sourceCode, fileNames)
+						preliminaryImport(cxpartialparsing.Program, pkgName, sourceCode, fileNames)
 					}
 				}
 			}
@@ -279,8 +291,6 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 				if match := reGlblName.FindStringSubmatch(string(line)); match != nil {
 					if _, err := prePkg.GetGlobal(actions.AST, actions.AST.CXProgramNameIntern(match[len(match)-1])); err != nil {
 						// then it hasn't been added
-						// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-						// Now a constructor call, site S1627.
 						_, arg := ast.MakeArgument(actions.AST, actions.AST.CXProgramNameIntern(match[len(match)-1]), ast.SourceFileGidNil, 0)
 						arg.Offset = types.InvalidPointer
 						arg.Package = ast.CXPackageIndex(prePkg.Index)
@@ -301,6 +311,8 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 		actions.AST.CxIrState.CxIrStateManagerGrowBoundary()
 		profiling.StartProfile(srcNames[i])
 		source = source + "\n"
+		// Each file selects its package with its package clause.
+		actions.AST.CurrentPackage = -1
 		cxpartialparsing.CurrentFile = ast.SourceFileGidNil
 		if len(srcNames) > 0 {
 			cxpartialparsing.CurrentFile = actions.AST.CXProgramSourceFileIntern(srcNames[i])
@@ -313,7 +325,7 @@ func Preliminarystage(srcStrs, srcNames []string) int {
 	}
 
 	profiling.StopProfile("3. cxpartialparsing")
-	return parseErrors
+	return parseErrors, packages
 }
 
 func AddInitFunction(prgrm *ast.CXProgram) error {
@@ -327,7 +339,9 @@ func AddInitFunction(prgrm *ast.CXProgram) error {
 	// Now a constructor call, site S1629.
 	initFn := ast.MakeFunction(prgrm, prgrm.CxIrState.CxIrStateNameSysInit, actions.CurrentFile, actions.LineNo)
 	_, fnIdx := mainPkg.AddFunction(prgrm, initFn)
+	globalsMethodResultsDeclare(prgrm, prgrm.GetFunctionFromArray(fnIdx))
 
+	globalsInitializersOrder(prgrm)
 	//Init Expressions
 	actions.FunctionDeclaration(prgrm, fnIdx, nil, nil, prgrm.SysInitExprs)
 
@@ -335,4 +349,83 @@ func AddInitFunction(prgrm *ast.CXProgram) error {
 		return err
 	}
 	return nil
+}
+
+// preliminaryImportFailed records that the import of path at line and column
+// of the file name cannot be loaded, and adds an empty package in its place, so
+// the passes import it and its members report no error of their own.
+func preliminaryImportFailed(prgrm *ast.CXProgram, path string, name string, line int, column int, reason string) {
+	prgrm.CXProgramCompileErrorAddPosition(ast.CompileErrorCodeImportFailed, prgrm.CXProgramSourceFileIntern(name), line, column, ast.CompileErrorOperands{prgrm.CXProgramCompileErrorText(path), prgrm.CXProgramCompileErrorText(reason)})
+	ident := preliminaryImportIdent(prgrm, path)
+	prgrm.CXProgramImportFailedAdd(ident)
+	if _, err := prgrm.GetPackage(ident); err != nil {
+		prgrm.AddPackage(ast.MakePackage(ident))
+	}
+}
+
+// preliminaryImportIdent is the name of the package of the import path.
+func preliminaryImportIdent(prgrm *ast.CXProgram, path string) stringpool.StringGid {
+	return prgrm.CXProgramNameIntern(path[strings.LastIndexByte(path, '/')+1:])
+}
+
+// preliminaryImport compiles the files of the package of the import path.
+// Their errors print with the errors of the program, and a package with
+// errors is a failed import, whose members report no error of their own.
+func preliminaryImport(prgrm *ast.CXProgram, path string, sourceCode []*os.File, fileNames []string) {
+	sources := make([]string, len(sourceCode))
+	for index, file := range sourceCode {
+		text, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			panic(err)
+		}
+		sources[index] = string(text)
+	}
+	for index := range fileNames {
+		fileNames[index] = preliminaryImportPath(fileNames[index])
+	}
+	records := len(prgrm.CxIrState.CompileErrorList.CompileErrorListRecords)
+	// The error return also counts the errors recorded before the import.
+	parseSourceStrings(sources, fileNames)
+	if len(prgrm.CxIrState.CompileErrorList.CompileErrorListRecords) == records {
+		return
+	}
+	ident := preliminaryImportIdent(prgrm, path)
+	prgrm.CXProgramImportFailedAdd(ident)
+	if pkg, err := prgrm.GetPackage(ident); err == nil {
+		clear(pkg.Functions)
+		clear(pkg.Structs)
+		clear(pkg.Methods)
+		pkg.Globals.Fields = nil
+	}
+}
+
+// preliminaryImportPath is path relative to the working directory, or to
+// the parent of SRCPATH as $CXPATH/..., so the errors do not depend on where
+// the program is.
+func preliminaryImportPath(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	if wd, err := os.Getwd(); err == nil {
+		if rel, err := filepath.Rel(wd, path); err == nil && filepath.IsLocal(rel) {
+			return filepath.ToSlash(rel)
+		}
+	}
+	if root, err := filepath.Abs(filepath.Dir(globals.SRCPATH)); err == nil {
+		if rel, err := filepath.Rel(root, path); err == nil && filepath.IsLocal(rel) {
+			return "$CXPATH/" + filepath.ToSlash(rel)
+		}
+	}
+	return filepath.ToSlash(path)
+}
+
+// preliminaryImportReason is the text of err, which loading dir returned,
+// with dir as preliminaryImportPath prints it.
+func preliminaryImportReason(dir string, err error) string {
+	shown := preliminaryImportPath(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return shown + ": source file or library not found"
+	}
+	return strings.ReplaceAll(err.Error(), dir, shown)
 }

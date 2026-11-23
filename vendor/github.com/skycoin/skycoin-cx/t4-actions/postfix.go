@@ -7,6 +7,7 @@ import (
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t1-constants"
 	objmodel "github.com/skycoin/skycoin-cx/t1-cx-core-objmodel"
+	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
 	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
@@ -18,6 +19,7 @@ import (
 //		prevExprs - the previous expressions that compose the postfix expression.
 //	 postExprs - the array expressions.
 func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, postExprs []ast.CXExpression) []ast.CXExpression {
+	prevExprs = MethodCallValue(prgrm, prevExprs)
 	var elt *ast.CXArgument
 
 	prevExpressionIdx := prevExprs[len(prevExprs)-1].Index
@@ -48,8 +50,6 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 			prevExpressionOperatorOutputArg := prgrm.GetCXArgFromArray(ast.CXArgumentIndex(prevExpressionOperatorOutputTypeSig.Meta))
 
 			prevExpressionOperatorOutput := prevExpressionOperatorOutputArg
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1099.
 			_, out := ast.MakeArgument(prgrm, genName, prevExprCXLine.FileName, prevExprCXLine.LineNumber-1)
 			out.SetType(prevExpressionOperatorOutput.Type)
 
@@ -63,8 +63,6 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 			typeSigIdx := ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, out)
 			prgrm.CXAtomicOps[prevExpressionIdx].AddOutput(prgrm, typeSigIdx)
 
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1101.
 			_, inp := ast.MakeArgument(prgrm, genName, prevExprCXLine.FileName, prevExprCXLine.LineNumber)
 			inp.SetType(prevExpressionOperatorOutput.Type)
 
@@ -95,6 +93,7 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 			argDetails := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(argDetailsGid)
 			argDetails.FileName = prevExprCXLine.FileName
 			argDetails.FileLine = prevExprCXLine.LineNumber - 1
+			argDetails.FileColumn = prgrm.CXProgramCompileErrorColumn(argDetails.FileName, argDetails.FileLine)
 			_, newTypeSig := prgrm.AllocCXTypeSignature()
 			newTypeSig.ArgDetails = argDetailsGid
 			newTypeSig.Name = genName
@@ -115,6 +114,7 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 			inpArgDetails := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(inpArgDetailsGid)
 			inpArgDetails.FileName = prevExprCXLine.FileName
 			inpArgDetails.FileLine = prevExprCXLine.LineNumber - 1
+			inpArgDetails.FileColumn = prgrm.CXProgramCompileErrorColumn(inpArgDetails.FileName, inpArgDetails.FileLine)
 			_, inpNewTypeSig := prgrm.AllocCXTypeSignature()
 			inpNewTypeSig.ArgDetails = inpArgDetailsGid
 			inpNewTypeSig.Name = genName
@@ -160,8 +160,6 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 	} else if prevExpressionOutputTypeSig.Type == ast.TYPE_ATOMIC || prevExpressionOutputTypeSig.Type == ast.TYPE_POINTER_ATOMIC {
 		// TODO: implement correct way when it is possible
 		// temporarily return back to cx arg deprecate
-		// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-		// Now a constructor call, site S1118.
 		_, arg := ast.MakeArgument(prgrm, prevExpressionOutputTypeSig.Name, CurrentFile, LineNo) // fix: line numbers in errors sometimes report +1 or -1. Issue #195
 		arg.SetType(types.IDENTIFIER)
 		arg.Name = prevExpressionOutputTypeSig.Name
@@ -213,8 +211,6 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 				panic("type is not cx argument deprecate\n\n")
 			}
 
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1127.
 			_, sym := ast.MakeArgument(prgrm, generateTempVarName(prgrm, constants.LOCAL_PREFIX), CurrentFile, LineNo)
 			sym.SetType(postExpressionOperatorOutputArg.Type)
 			sym.Package = prgrm.CXAtomicOps[postExpressionIdx].Package
@@ -242,8 +238,6 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 				// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
 				// Now an arena getter, site S1130.
 				postExpressionOperatorOutputArg := prgrm.GetCXArgFromArray(ast.CXArgumentIndex(postExpressionOperatorOutputTypeSig.Meta))
-				// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-				// Now a constructor call, site S1131.
 				_, idxSym := ast.MakeArgument(prgrm, generateTempVarName(prgrm, constants.LOCAL_PREFIX), CurrentFile, LineNo)
 				idxSym.SetType(postExpressionOperatorOutputArg.Type)
 				idxSym.Size = postExpressionOperatorOutputArg.Size
@@ -257,6 +251,7 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 				argDetails := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(argDetailsGid)
 				argDetails.FileName = CurrentFile
 				argDetails.FileLine = LineNo
+				argDetails.FileColumn = prgrm.CXProgramCompileErrorColumn(argDetails.FileName, argDetails.FileLine)
 				_, newTypeSig := prgrm.AllocCXTypeSignature()
 				newTypeSig.ArgDetails = argDetailsGid
 				newTypeSig.Name = generateTempVarName(prgrm, constants.LOCAL_PREFIX)
@@ -270,6 +265,7 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 				argDetails := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(argDetailsGid)
 				argDetails.FileName = CurrentFile
 				argDetails.FileLine = LineNo
+				argDetails.FileColumn = prgrm.CXProgramCompileErrorColumn(argDetails.FileName, argDetails.FileLine)
 				_, newTypeSig := prgrm.AllocCXTypeSignature()
 				newTypeSig.ArgDetails = argDetailsGid
 				newTypeSig.Name = generateTempVarName(prgrm, constants.LOCAL_PREFIX)
@@ -328,6 +324,11 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 		}
 	}
 
+	// An index read after a method call keeps the call.
+	if postExpressionOperator == nil && len(postExprs) > 1 {
+		prevExprs = append(append([]ast.CXExpression{}, postExprs[:len(postExprs)-1]...), prevExprs...)
+	}
+
 	return prevExprs
 }
 
@@ -341,13 +342,10 @@ func PostfixExpressionArray(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 //					expression.
 func PostfixExpressionNative(prgrm *ast.CXProgram, typeCode types.Code, opStrCode string) []ast.CXExpression {
 	// these will always be native functions
-	opCode, ok := ast.OpCodes[typeCode.Name()+"."+opStrCode]
-	if !ok {
-		if renamedOpcodeRecord(prgrm, CurrentFile, LineNo, typeCode.Name()+"."+opStrCode) {
-			prgrm.CXProgramCompileErrorExit()
-		}
-		prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodeFunctionMissing, CurrentFile, LineNo, ast.CompileErrorOperands{prgrm.CXProgramCompileErrorText(typeCode.Name() + "." + opStrCode)})
-		prgrm.CXProgramCompileErrorExit()
+	opName := typeCode.Name() + "." + opStrCode
+	opCode, ok := ast.OpCodes[opName]
+	if !ok && !renamedOpcodeRecord(prgrm, CurrentFile, LineNo, opName) {
+		prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodeFunctionMissing, CurrentFile, LineNo, ast.CompileErrorOperands{prgrm.CXProgramCompileErrorText(opName)})
 	}
 
 	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
@@ -355,7 +353,13 @@ func PostfixExpressionNative(prgrm *ast.CXProgram, typeCode types.Code, opStrCod
 	exprCXLine := MakeCXLineExpressionCurrent(prgrm)
 	// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
 	// Now a constructor call, site S1145.
-	expr := ast.MakeAtomicOperatorExpression(prgrm, ast.Natives[opCode])
+	var expr *ast.CXExpression
+	if ok {
+		expr = ast.MakeAtomicOperatorExpression(prgrm, ast.Natives[opCode])
+	} else {
+		// The call of a missing native is typed by a stand in, see invalidFunctionIndex.
+		expr = ast.MakeAtomicOperatorExpression(prgrm, nil)
+	}
 	// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
 	// Now an arena getter, site S1146.
 	expression, err := prgrm.GetCXAtomicOp(expr.Index)
@@ -368,6 +372,9 @@ func PostfixExpressionNative(prgrm *ast.CXProgram, typeCode types.Code, opStrCod
 		panic(err)
 	}
 	expression.Package = ast.CXPackageIndex(pkg.Index)
+	if !ok {
+		expression.Operator = invalidFunctionIndex(prgrm, expression.Package, prgrm.CXProgramNameIntern(opName))
+	}
 	// OBJMODEL: state.CXExpressionMng (manager storage) or []CXExpressionGid, phase 4 #346.
 	// Now a slice of objects, site S1147.
 	return []ast.CXExpression{*exprCXLine, *expr}
@@ -381,6 +388,9 @@ func PostfixExpressionNative(prgrm *ast.CXProgram, typeCode types.Code, opStrCod
 //	prgrm - a CXProgram that contains all the data and arrays of the program.
 //	prevExprs - the previous expressions that compose the postfix expression.
 func PostfixExpressionEmptyFunCall(prgrm *ast.CXProgram, prevExprs []ast.CXExpression) []ast.CXExpression {
+	if functionCallRepeated(prgrm, prevExprs) {
+		return prevExprs
+	}
 	prevExpression, err := prgrm.GetCXAtomicOpFromExpressions(prevExprs, len(prevExprs)-1)
 	if err != nil {
 		panic(err)
@@ -420,7 +430,7 @@ func PostfixExpressionEmptyFunCall(prgrm *ast.CXProgram, prevExprs []ast.CXExpre
 		// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
 		// Now an arena getter, site S1153.
 		prevExpressionOutputTypeSig := prgrm.GetCXTypeSignatureFromArray(prevExpression.GetOutputs(prgrm)[0])
-		if opCode, ok := ast.OpCodes[prgrm.CXProgramNameText(prevExpressionOutputTypeSig.Name)]; ok {
+		if opCode, ok := ast.OpCodes[prgrm.CXProgramNameText(prevExpressionOutputTypeSig.Name)]; ok && !functionDeclared(prgrm, prevExpressionOutputTypeSig) {
 			if pkg, err := prgrm.GetCurrentPackage(); err == nil {
 				prgrm.CXAtomicOps[firstPrevExpressionIdx].Package = ast.CXPackageIndex(pkg.Index)
 			}
@@ -444,10 +454,13 @@ func PostfixExpressionEmptyFunCall(prgrm *ast.CXProgram, prevExprs []ast.CXExpre
 //		prgrm - a CXProgram that contains all the data and arrays of the program.
 //		prevExprs - the previous expressions that compose the postfix expression.
 //	 args - input args list for the function call.
-func PostfixExpressionFunCall(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, args []ast.CXExpression) []ast.CXExpression {
+func PostfixExpressionFunCall(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, args [][]ast.CXExpression) []ast.CXExpression {
 	// An unresolved callee has already been reported as a compile error.
 	if len(prevExprs) == 0 {
 		return nil
+	}
+	if functionCallRepeated(prgrm, prevExprs) {
+		return prevExprs
 	}
 
 	lastPrevExpression, err := prgrm.GetCXAtomicOpFromExpressions(prevExprs, len(prevExprs)-1)
@@ -485,7 +498,7 @@ func PostfixExpressionFunCall(prgrm *ast.CXProgram, prevExprs []ast.CXExpression
 		// prevExprs[len(prevExprs) - 1].IsMethodCall = true
 
 	} else if lastPrevExpressionOperator == nil {
-		if opCode, ok := ast.OpCodes[prgrm.CXProgramNameText(lastPrevExpressionOutputTypeSig.Name)]; ok {
+		if opCode, ok := ast.OpCodes[prgrm.CXProgramNameText(lastPrevExpressionOutputTypeSig.Name)]; ok && !functionDeclared(prgrm, lastPrevExpressionOutputTypeSig) {
 			if pkg, err := prgrm.GetCurrentPackage(); err == nil {
 				prgrm.CXAtomicOps[firstPrevExpressionIdx].Package = ast.CXPackageIndex(pkg.Index)
 			}
@@ -530,10 +543,6 @@ func PostfixExpressionIncDec(prgrm *ast.CXProgram, prevExprs []ast.CXExpression,
 		expr = ast.MakeAtomicOperatorExpression(prgrm, ast.Natives[constants.OP_SUB])
 	}
 
-	var valB [4]byte
-	types.Write_i32(valB[:], 0, 1)
-	valArg := WritePrimary(prgrm, types.I32, valB[:], false)
-
 	lastPrevExpression, err := prgrm.GetCXAtomicOpFromExpressions(prevExprs, len(prevExprs)-1)
 	if err != nil {
 		panic(err)
@@ -543,18 +552,15 @@ func PostfixExpressionIncDec(prgrm *ast.CXProgram, prevExprs []ast.CXExpression,
 	prgrm.CXAtomicOps[expressionIdx].Package = ast.CXPackageIndex(pkg.Index)
 
 	typeSigIdx := lastPrevExpression.GetOutputs(prgrm)[0]
-	prgrm.CXAtomicOps[expressionIdx].AddInput(prgrm, typeSigIdx)
+	prgrm.CXAtomicOps[expressionIdx].AddInput(prgrm, ArgumentReadCopy(prgrm, typeSigIdx))
 
-	typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, valArg)
-	prgrm.CXAtomicOps[expressionIdx].AddInput(prgrm, typeSigIdx)
-
-	typeSigIdx = lastPrevExpression.GetOutputs(prgrm)[0]
+	// incDecOperandAdd adds the 1 once the type of the operand is known.
 	prgrm.CXAtomicOps[expressionIdx].AddOutput(prgrm, typeSigIdx)
 
 	// OBJMODEL: state.CXExpressionMng (manager storage) or []CXExpressionGid, phase 4 #346.
 	// Now a slice of objects, site S1164.
-	exprs := append([]ast.CXExpression{}, *exprCXLine, *expr)
-	return exprs
+	exprs := append([]ast.CXExpression{}, prevExprs[:len(prevExprs)-1]...)
+	return append(exprs, *exprCXLine, *expr)
 }
 
 // PostfixExpressionField handles the dot notation that can be followed by an identifier.
@@ -567,6 +573,7 @@ func PostfixExpressionIncDec(prgrm *ast.CXProgram, prevExprs []ast.CXExpression,
 //					i.e. 'foo' in the example above.
 //	 ident - field name or the identifier after the dot notation.
 func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, ident string) []ast.CXExpression {
+	prevExprs = MethodCallValue(prgrm, prevExprs)
 	lastExpr := prevExprs[len(prevExprs)-1]
 
 	lastExpressionIdx := lastExpr.Index
@@ -586,16 +593,10 @@ func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 		lastExpressionOperatorOutputTypeSig := prgrm.GetCXTypeSignatureFromArray(lastExpressionOperatorOutputs[0])
 
 		symName := generateTempVarName(prgrm, constants.LOCAL_PREFIX)
-		if lastExpressionOperatorOutputTypeSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
-			// OBJMODEL: state.CXArgumentMng.CXArgumentGet(gid), phase 5 #327.
-			// Now an arena getter, site S1167.
-			lastExpressionOperatorOutputArg := prgrm.GetCXArgFromArray(ast.CXArgumentIndex(lastExpressionOperatorOutputTypeSig.Meta))
-
-			opOut := lastExpressionOperatorOutputArg
+		if sigType := lastExpressionOperatorOutputTypeSig.Type; sigType == ast.TYPE_CXARGUMENT_DEPRECATE || sigType == ast.TYPE_STRUCT || sigType == ast.TYPE_POINTER_STRUCT {
+			opOut := postfixCallResultArgument(prgrm, lastExpressionOperatorOutputTypeSig)
 
 			// we associate the result of the function call to the aux variable
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1168.
 			_, out := ast.MakeArgument(prgrm, symName, lastExprCXLine.FileName, lastExprCXLine.LineNumber)
 			out.SetType(opOut.Type)
 			out.DeclarationSpecifiers = opOut.DeclarationSpecifiers
@@ -612,8 +613,6 @@ func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 
 			// we need to create an expression to hold all the modifications
 			// that will take place after this if statement
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1170.
 			_, inp := ast.MakeArgument(prgrm, symName, lastExprCXLine.FileName, lastExprCXLine.LineNumber)
 			inp.SetType(opOut.Type)
 			inp.DeclarationSpecifiers = opOut.DeclarationSpecifiers
@@ -636,57 +635,9 @@ func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 			}
 
 			expression.Package = prgrm.CXAtomicOps[lastExpressionIdx].Package
-			typeSigIdx = ast.AllocCXTypeSignatureOfCXArgBuilder(prgrm, inp)
+			// A named signature keeps the fields and method calls of f().x on inp.
+			typeSigIdx = ast.AllocCXTypeSignatureOfCXArgDeprecate(prgrm, inp)
 			expression.AddOutput(prgrm, typeSigIdx)
-			prevExprs = append(prevExprs, *exprCXLine, *expr)
-
-			lastExpr = prevExprs[len(prevExprs)-1]
-
-			lastExpressionIdx = lastExpr.Index
-		} else if lastExpressionOperatorOutputTypeSig.Type == ast.TYPE_STRUCT {
-			// OBJMODEL: state.CXTypeSignature_StructMng.CXTypeSignature_StructGet(gid), phase 5 #322.
-			// Now an arena getter, site S1176.
-			structDetails := prgrm.GetCXTypeSignatureStructFromArray(lastExpressionOperatorOutputTypeSig.Meta)
-
-			outStructGid := prgrm.CxIrState.CXTypeSignature_StructMng.CXTypeSignature_StructAlloc()
-			outStructDetails := prgrm.CxIrState.CXTypeSignature_StructMng.CXTypeSignature_StructGet(outStructGid)
-			outStructDetails.Fields = structDetails.Fields
-			outStructDetails.StructType = structDetails.StructType
-			outStructDetailsIdx := int(objmodel.GidIndex(int64(outStructGid)))
-
-			_, outTypeSig := prgrm.AllocCXTypeSignatureCopy(lastExpressionOperatorOutputTypeSig)
-			outTypeSig.Name = symName
-			outTypeSig.Meta = outStructDetailsIdx
-			outTypeSigIdx := outTypeSig.Index
-			prgrm.CXAtomicOps[lastExpressionIdx].AddOutput(prgrm, outTypeSigIdx)
-
-			// we need to create an expression to hold all the modifications
-			// that will take place after this if statement
-			_, inpTypeSig := prgrm.AllocCXTypeSignatureCopy(lastExpressionOperatorOutputTypeSig)
-			inpTypeSig.Name = symName
-			inpStructGid := prgrm.CxIrState.CXTypeSignature_StructMng.CXTypeSignature_StructAlloc()
-			inpStructDetails := prgrm.CxIrState.CXTypeSignature_StructMng.CXTypeSignature_StructGet(inpStructGid)
-			inpStructDetails.Fields = structDetails.Fields
-			inpStructDetails.StructType = structDetails.StructType
-			inpTypeSig.Meta = int(objmodel.GidIndex(int64(inpStructGid)))
-			inpTypeSigIdx := inpTypeSig.Index
-
-			// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
-			// Now a constructor call, site S1184.
-			exprCXLine := ast.MakeCXLineExpression(prgrm, lastExprCXLine.FileName, lastExprCXLine.LineNumber, lastExprCXLine.LineStr)
-			// OBJMODEL: state.CXExpressionMng.CXExpressionAlloc(), phase 4 #346.
-			// Now a constructor call, site S1185.
-			expr := ast.MakeAtomicOperatorExpression(prgrm, nil)
-
-			// OBJMODEL: state.CXAtomicOperatorMng.CXAtomicOperatorGet(gid), phase 5 #342.
-			// Now an arena getter, site S1186.
-			expression, err := prgrm.GetCXAtomicOp(expr.Index)
-			if err != nil {
-				panic(err)
-			}
-
-			expression.Package = prgrm.CXAtomicOps[lastExpressionIdx].Package
-			expression.AddOutput(prgrm, inpTypeSigIdx)
 			prevExprs = append(prevExprs, *exprCXLine, *expr)
 
 			lastExpr = prevExprs[len(prevExprs)-1]
@@ -822,14 +773,23 @@ func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 				lastExpressionOutputTypeSig.Type = glbl.Type
 				lastExpressionOutputTypeSig.Meta = glbl.Meta
 				lastExpressionOutputTypeSig.Offset = glbl.Offset
+			} else if lastExpressionOutputTypeSig := prgrm.GetCXTypeSignatureFromArray(prgrm.CXAtomicOps[lastExpressionIdx].GetOutputs(prgrm)[0]); lastExpressionOutputTypeSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
+				// An array or slice global, pkg.A[i], is found by name like a global of this package.
+				lastExpressionOutputArg := prgrm.GetCXArgFromArray(ast.CXArgumentIndex(lastExpressionOutputTypeSig.Meta))
+				lastExpressionOutputArg.Name = glbl.Name
+				lastExpressionOutputTypeSig.Name = glbl.Name
+				lastExpressionOutputArg.Package = glbl.Package
+				lastExpressionOutputTypeSig.Package = glbl.Package
 			} else {
 				panic("type is not known")
 			}
-		} else if fn, err := imp.GetFunction(prgrm, identGid); err == nil {
-			// then it's a function
-			// not sure about this next line
-			prgrm.CXAtomicOps[lastExpressionIdx].Outputs = nil
-			prgrm.CXAtomicOps[lastExpressionIdx].Operator = ast.CXFunctionIndex(fn.Index)
+		} else if _, found := imp.Functions[identGid]; found {
+			// A function of imp, not of its imports (skycoin/cx#9). Like a local
+			// function name it is a call only with parentheses (skycoin-cx#48).
+			leftExprOutputTypeSig.Name = identGid
+			if leftExprOutputTypeSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
+				prgrm.GetCXArg(ast.CXArgumentIndex(leftExprOutputTypeSig.Meta)).Name = identGid
+			}
 		} else if strct, err := prgrm.GetStruct(identGid, imp.Name); err == nil {
 			// OBJMODEL: state.CXTypeSignatureMng.CXTypeSignatureGet(gid), phase 5 #332.
 			// Now an arena getter, site S1196.
@@ -845,26 +805,25 @@ func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 
 			lastExpressionOutputArg.StructType = strct
 		} else {
-			file, line := CurrentFile, LineNo
+			file, line, column := CurrentFile, LineNo, prgrm.CXProgramCompileErrorColumn(CurrentFile, LineNo)
 			if details := leftExprOutputTypeSig.ArgDetails; details != ast.CXArgumentDebugGidNil {
-				file, line = ast.CXArgumentDebugFileGidLine(prgrm, details)
+				file, line, column = ast.CXArgumentDebugPosition(prgrm, details)
 			}
-			if renamedOpcodeRecord(prgrm, file, line, prgrm.CXProgramNameText(imp.Name)+"."+ident) {
-				prgrm.CXProgramCompileErrorExit()
+			name := prgrm.CXProgramNameText(imp.Name) + "." + ident
+			// A package whose import failed has no members, and its import is the error.
+			if !prgrm.CXProgramImportFailed(imp.Name) && !renamedOpcodeRecord(prgrm, file, line, name) {
+				prgrm.CXProgramCompileErrorAddPosition(ast.CompileErrorCodePackageIdentifierMissing, file, line, column, ast.CompileErrorOperands{int64(imp.Name), prgrm.CXProgramCompileErrorText(ident)})
 			}
-			prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodePackageIdentifierMissing, file, line, ast.CompileErrorOperands{int64(imp.Name), prgrm.CXProgramCompileErrorText(ident)})
-			prgrm.CXProgramCompileErrorExit()
+			return postfixFieldInvalidate(prgrm, prevExprs, lastExpressionIdx, name)
 		}
 	} else {
 		// then left is not a package name
 		if cxpackages.IsDefaultPackage(prgrm.CXProgramNameText(leftExprOutputTypeSig.Name)) {
 			prgrm.CXProgramCompileErrorAddDebug(ast.CompileErrorCodeBuiltinPackageNotImported, leftExprOutputTypeSig.ArgDetails, ast.CompileErrorOperands{int64(leftExprOutputTypeSig.Name), int64(leftExprOutputTypeSig.Name)})
-			prgrm.CXProgramCompileErrorExit()
+			return postfixFieldInvalidate(prgrm, prevExprs, lastExpressionIdx, prgrm.CXProgramNameText(leftExprOutputTypeSig.Name)+"."+ident)
 		}
 
 		// then it's a struct
-		// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-		// Now a constructor call, site S1199.
 		_, leftExprField := ast.MakeArgument(prgrm, identGid, CurrentFile, LineNo)
 		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
 		// Now an arena getter, site S1200.
@@ -887,8 +846,6 @@ func PostfixExpressionField(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, 
 			// TODO: implement correct way when it is possible
 			// temporarily return back to cx arg deprecate
 			// since the arg will become a struct
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1202.
 			_, arg := ast.MakeArgument(prgrm, leftExprOutputTypeSig.Name, CurrentFile, LineNo) // fix: line numbers in errors sometimes report +1 or -1. Issue #195
 			arg.SetType(types.IDENTIFIER)
 			arg.Name = leftExprOutputTypeSig.Name
@@ -932,4 +889,164 @@ func renamedOpcodeRecord(prgrm *ast.CXProgram, file ast.SourceFileGid, line int,
 	}
 	prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodeOpcodeRenamed, file, line, operands)
 	return true
+}
+
+// MethodCallValue gives the method call that ends exprs a result variable,
+// which ProcessMethodCall types, and appends an expression that reads it.
+func MethodCallValue(prgrm *ast.CXProgram, exprs []ast.CXExpression) []ast.CXExpression {
+	if len(exprs) == 0 || !exprs[len(exprs)-1].IsMethodCall() {
+		return exprs
+	}
+	callOp := &prgrm.CXAtomicOps[exprs[len(exprs)-1].Index]
+	if len(callOp.GetOutputs(prgrm)) > 0 {
+		return exprs
+	}
+	return append(exprs, primaryIdentifierExpressions(prgrm, methodCallResultAdd(prgrm, callOp))...)
+}
+
+// methodCallResultAdd adds a result variable to the outputs of a method call
+// and returns its name.
+func methodCallResultAdd(prgrm *ast.CXProgram, callOp *ast.CXAtomicOperator) stringpool.StringGid {
+	pkg, err := prgrm.GetCurrentPackage()
+	if err != nil {
+		panic(err)
+	}
+
+	resultName := generateTempVarName(prgrm, constants.METHOD_RESULT_PREFIX)
+	// A local name, so the result is declared even when typed by a signature.
+	fn, err := prgrm.GetCurrentFunction()
+	if err != nil {
+		panic(err)
+	}
+	if err := fn.AddLocalVariableName(resultName); err != nil {
+		panic(err)
+	}
+	_, result := ast.MakeArgument(prgrm, resultName, CurrentFile, LineNo)
+	result.Type = types.UNDEFINED
+	result.Package = ast.CXPackageIndex(pkg.Index)
+	result.PreviouslyDeclared = true
+	callOp.AddOutput(prgrm, ast.AllocCXTypeSignatureOfCXArgDeprecate(prgrm, result))
+	return resultName
+}
+
+// MethodCallStatement undoes MethodCallValue for a method call whose result
+// is not used, so exprs end with the method call again.
+func MethodCallStatement(prgrm *ast.CXProgram, exprs []ast.CXExpression) []ast.CXExpression {
+	if len(exprs) < 2 || !exprs[len(exprs)-2].IsMethodCall() || exprs[len(exprs)-1].Type == ast.CX_LINE {
+		return exprs
+	}
+	readOp := &prgrm.CXAtomicOps[exprs[len(exprs)-1].Index]
+	callOp := &prgrm.CXAtomicOps[exprs[len(exprs)-2].Index]
+	if prgrm.GetFunctionFromArray(readOp.Operator) != nil || len(callOp.GetOutputs(prgrm)) != 1 || len(readOp.GetOutputs(prgrm)) != 1 {
+		return exprs
+	}
+	resultTypeSig := prgrm.GetCXTypeSignatureFromArray(callOp.GetOutputs(prgrm)[0])
+	readTypeSig := prgrm.GetCXTypeSignatureFromArray(readOp.GetOutputs(prgrm)[0])
+	if readTypeSig.Name != resultTypeSig.Name || readTypeSig.Type != ast.TYPE_CXARGUMENT_DEPRECATE {
+		return exprs
+	}
+	read := prgrm.GetCXArg(ast.CXArgumentIndex(readTypeSig.Meta))
+	if len(read.Fields) > 0 || len(read.Indexes) > 0 || len(read.DereferenceOperations) > 0 {
+		return exprs
+	}
+	callOp.Outputs = nil
+	if fn, err := prgrm.GetCurrentFunction(); err == nil {
+		if err := fn.RemoveLocalVariableFromArray(resultTypeSig.Name); err != nil {
+			panic(err)
+		}
+	}
+	return exprs[:len(exprs)-1]
+}
+
+// functionCallRepeated records the compile error for a call of a call
+// result, as in f() () (skycoin-cx#22).
+func functionCallRepeated(prgrm *ast.CXProgram, prevExprs []ast.CXExpression) bool {
+	if len(prevExprs) == 0 {
+		return false
+	}
+	last := prevExprs[len(prevExprs)-1]
+	if last.ExpressionType != ast.CXEXPR_FUNCTION_CALL && !last.IsMethodCall() {
+		return false
+	}
+	prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodeCallResultCall, CurrentFile, LineNo, ast.CompileErrorOperands{})
+	return true
+}
+
+// functionDeclared reports whether the package of sig declares a function
+// named sig.Name, which then shadows a built-in (skycoin-cx#294).
+func functionDeclared(prgrm *ast.CXProgram, sig *ast.CXTypeSignature) bool {
+	if sig.Package < 0 {
+		return false
+	}
+	pkg, err := prgrm.GetPackageFromArray(sig.Package)
+	if err != nil {
+		return false
+	}
+	_, found := pkg.Functions[sig.Name]
+	return found
+}
+
+// ArgumentReadCopy returns a copy of a field, index or dereference read with
+// its own arguments, so one expression can read and write it as in p.x++.
+func ArgumentReadCopy(prgrm *ast.CXProgram, sigIdx ast.CXTypeSignatureIndex) ast.CXTypeSignatureIndex {
+	sig := prgrm.GetCXTypeSignatureFromArray(sigIdx)
+	if sig.Type != ast.TYPE_CXARGUMENT_DEPRECATE {
+		return sigIdx
+	}
+	arg := prgrm.GetCXArg(ast.CXArgumentIndex(sig.Meta))
+	if len(arg.Fields) == 0 && len(arg.Indexes) == 0 && len(arg.DereferenceOperations) == 0 {
+		return sigIdx
+	}
+	return ast.AllocCXTypeSignatureOfCXArgDeprecate(prgrm, argumentCopy(prgrm, arg))
+}
+
+// argumentCopy copies arg with its fields and indexes into new arguments.
+func argumentCopy(prgrm *ast.CXProgram, arg *ast.CXArgument) *ast.CXArgument {
+	details := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(arg.ArgDetails)
+	_, argCopy := ast.MakeArgument(prgrm, arg.Name, details.FileName, details.FileLine)
+	index, argDetails := argCopy.Index, argCopy.ArgDetails
+	*argCopy = *arg
+	argCopy.Index, argCopy.ArgDetails = index, argDetails
+	argCopy.Lengths = append([]types.Pointer(nil), arg.Lengths...)
+	argCopy.DereferenceOperations = append([]int(nil), arg.DereferenceOperations...)
+	argCopy.DeclarationSpecifiers = append([]int(nil), arg.DeclarationSpecifiers...)
+	argCopy.Indexes = make([]ast.CXTypeSignatureIndex, len(arg.Indexes))
+	for i, indexSigIdx := range arg.Indexes {
+		indexSig := prgrm.GetCXTypeSignatureFromArray(indexSigIdx)
+		argCopy.Indexes[i] = indexSigIdx
+		if indexSig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
+			argCopy.Indexes[i] = ast.AllocCXTypeSignatureOfCXArgDeprecate(prgrm, argumentCopy(prgrm, prgrm.GetCXArg(ast.CXArgumentIndex(indexSig.Meta))))
+		}
+	}
+	argCopy.Fields = make([]ast.CXArgumentIndex, len(arg.Fields))
+	for i, fieldIdx := range arg.Fields {
+		argCopy.Fields[i] = ast.CXArgumentIndex(argumentCopy(prgrm, prgrm.GetCXArg(fieldIdx)).Index)
+	}
+	return argCopy
+}
+
+// postfixCallResultArgument returns the argument of the result sig of a call
+// that f().x reads, made for a struct or *T result that has none.
+func postfixCallResultArgument(prgrm *ast.CXProgram, sig *ast.CXTypeSignature) *ast.CXArgument {
+	if sig.Type == ast.TYPE_CXARGUMENT_DEPRECATE {
+		return prgrm.GetCXArgFromArray(ast.CXArgumentIndex(sig.Meta))
+	}
+	strct := prgrm.GetCXTypeSignatureStructFromArray(sig.Meta).StructType
+	arg := &ast.CXArgument{Type: types.STRUCT, StructType: strct, Size: strct.GetStructSize(prgrm), DeclarationSpecifiers: []int{constants.DECL_STRUCT}}
+	if sig.Type == ast.TYPE_POINTER_STRUCT {
+		arg.Type, arg.PointerTargetType, arg.Size = types.POINTER, types.STRUCT, types.POINTER_SIZE
+		arg.DeclarationSpecifiers = append(arg.DeclarationSpecifiers, constants.DECL_POINTER)
+	}
+	return arg
+}
+
+// postfixFieldInvalidate makes the expression at lastExpressionIdx, a
+// pkg.name that does not exist, a call of a stand in for name, see
+// invalidFunctionIndex, so its uses report nothing more.
+func postfixFieldInvalidate(prgrm *ast.CXProgram, prevExprs []ast.CXExpression, lastExpressionIdx int, name string) []ast.CXExpression {
+	expression := &prgrm.CXAtomicOps[lastExpressionIdx]
+	expression.Outputs = nil
+	expression.Inputs = nil
+	expression.Operator = invalidFunctionIndex(prgrm, expression.Package, prgrm.CXProgramNameIntern(name))
+	return prevExprs
 }

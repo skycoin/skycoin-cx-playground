@@ -53,8 +53,8 @@ const (
 	// ReasonParameterLayout is a function whose own inputs or outputs are
 	// not plain frame variables.
 	ReasonParameterLayout
-	// ReasonOperandHeap is an operand whose address goes through a slice,
-	// which lives on the heap.
+	// ReasonOperandHeap is an operand whose address goes through a slice or
+	// an escaped local, which live on the heap.
 	ReasonOperandHeap
 	// ReasonPrintfFormat is a printf whose format is not a str literal, or a
 	// verb and value the machine does not print as buildString does.
@@ -318,6 +318,9 @@ func (s *state) declaration(code []ir.Instr, cxAtomicOp *ast.CXAtomicOperator) (
 	default:
 		return code, ReasonDeclarationType
 	}
+	if ast.OffsetEscaped(offset) {
+		return code, ReasonOperandHeap
+	}
 	return append(code, ir.Instr{
 		InstrOpcode: ir.OpcodeZero,
 		InstrMode:   ir.InstrModeFrameA,
@@ -433,16 +436,19 @@ func (s *state) identity(code []ir.Instr, inputs []ast.CXTypeSignatureIndex, out
 	switch output.Type {
 	case ast.TYPE_CXARGUMENT_DEPRECATE:
 		element := prgrm.GetCXArgFromArray(ast.CXArgumentIndex(output.Meta)).GetAssignmentElement(prgrm)
-		address = element.IsPointer() && element.PointerTargetType != types.STR && element.Type != types.AFF || element.PassBy == constants.PASSBY_REFERENCE
-	case ast.TYPE_ATOMIC, ast.TYPE_SLICE_ATOMIC, ast.TYPE_STRUCT:
+		address = ast.CXArgumentTakesAddress(prgrm, element, input)
+		if ast.CXArgumentStringSlicePointer(element) {
+			address = ast.CXTypeSignaturePassBy(prgrm, input) == constants.PASSBY_REFERENCE
+		}
+	case ast.TYPE_ATOMIC, ast.TYPE_SLICE_ATOMIC:
 		address = output.PassBy == constants.PASSBY_REFERENCE
 	case ast.TYPE_POINTER_ATOMIC:
-		address = true
+		address = !ast.CXTypeSignaturePointerValue(prgrm, input)
 	case ast.TYPE_ARRAY_ATOMIC:
 	case ast.TYPE_POINTER_ARRAY_ATOMIC, ast.TYPE_POINTER_SLICE_ATOMIC:
 		address = input.PassBy == constants.PASSBY_REFERENCE
-	case ast.TYPE_POINTER_STRUCT:
-		address = !output.IsDeref
+	case ast.TYPE_STRUCT, ast.TYPE_POINTER_STRUCT:
+		address = ast.CXTypeSignatureStructTakesAddress(prgrm, output, input)
 	default:
 		return code, ReasonOperandNotScalar
 	}
@@ -749,6 +755,9 @@ func (s *state) placeOf(code []ir.Instr, signatureIndex ast.CXTypeSignatureIndex
 	prgrm := s.statePrgrm
 	signature := prgrm.GetCXTypeSignatureFromArray(signatureIndex)
 	size := pointerToUint32(signature.GetSize(prgrm, false))
+	if ast.OffsetEscaped(signature.GetOffset(prgrm)) {
+		return code, place{}, ReasonOperandHeap
+	}
 	var reason ReasonCode
 	switch signature.Type {
 	case ast.TYPE_ATOMIC:
@@ -859,7 +868,12 @@ func (s *state) placeDereferences(code []ir.Instr, p *place, arg *ast.CXArgument
 				return code, ReasonOperandIndexed
 			}
 			elementSize := ast.GetDerefSize(s.statePrgrm, arg, indexCount, derefPointer, true)
-			stride := pointerToUint32(types.TotalLength(arg.Lengths[indexCount+1:]) * elementSize)
+			lengths := arg.Lengths[indexCount+1:]
+			if dims := arg.ArraySliceDimensions(); dims > indexCount {
+				// The elements of [N][]T are slice headers.
+				elementSize, lengths = types.POINTER_SIZE, arg.Lengths[indexCount+1:dims]
+			}
+			stride := pointerToUint32(types.TotalLength(lengths) * elementSize)
 			derefPointer = false
 			if code, reason = s.placeIndex(code, p, arg.Indexes[indexCount], stride); reason != ReasonNone {
 				return code, reason

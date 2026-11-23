@@ -37,8 +37,6 @@ func WritePrimary(prgrm *ast.CXProgram, typeCode types.Code, byts []byte, isSlic
 		panic(err)
 	}
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1052.
 	_, arg := ast.MakeArgument(prgrm, stringpool.StringGidNil, CurrentFile, LineNo)
 	arg.SetType(typeCode)
 	arg.Package = ast.CXPackageIndex(pkg.Index)
@@ -112,14 +110,8 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	argStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Argument"))
 	// argStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1059.
 	_, argFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1060.
 	_, argFldIndex := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Index"), types.I32, ast.SourceFileGidNil, 0)
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1061.
 	_, argFldType := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Type"), types.STR, ast.SourceFileGidNil, 0)
 
 	argStrct.AddField(prgrm, argFldName)
@@ -134,8 +126,6 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	exprStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Expression"))
 	// exprStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1063.
 	_, exprFldOperator := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Operator"), types.STR, ast.SourceFileGidNil, 0)
 
 	exprStrct.AddField(prgrm, exprFldOperator)
@@ -148,18 +138,12 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	fnStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Function"))
 	// fnStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1065.
 	_, fnFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1066.
 	_, fnFldInpSig := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("InputSignature"), types.STR, ast.SourceFileGidNil, 0)
 	fnFldInpSig.Size = types.STR.Size()
 	fnFldInpSig = DeclarationSpecifiers(fnFldInpSig, []types.Pointer{0}, constants.DECL_SLICE)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1067.
 	_, fnFldOutSig := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("OutputSignature"), types.STR, ast.SourceFileGidNil, 0)
 	fnFldOutSig.Size = types.STR.Size()
 	fnFldOutSig = DeclarationSpecifiers(fnFldOutSig, []types.Pointer{0}, constants.DECL_SLICE)
@@ -177,8 +161,6 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	strctStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Structure"))
 	// strctStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1069.
 	_, strctFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
 
 	strctStrct.AddField(prgrm, strctFldName)
@@ -191,8 +173,6 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	pkgStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Structure"))
 	// pkgStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1071.
 	_, pkgFldName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("Name"), types.STR, ast.SourceFileGidNil, 0)
 
 	pkgStrct.AddField(prgrm, pkgFldName)
@@ -205,11 +185,7 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	callStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Caller"))
 	// callStrct.Size = cxcore.GetArgSize(cxcore.TYPE_STR) + cxcore.GetArgSize(cxcore.TYPE_I32)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1073.
 	_, callFldFnName := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("FnName"), types.STR, ast.SourceFileGidNil, 0)
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1074.
 	_, callFldFnSize := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("FnSize"), types.I32, ast.SourceFileGidNil, 0)
 
 	callStrct.AddField(prgrm, callFldFnName)
@@ -223,11 +199,7 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	prgrmStrct := ast.MakeStruct(prgrm.CXProgramNameIntern("Program"))
 	// prgrmStrct.Size = cxcore.GetArgSize(cxcore.TYPE_I32) + cxcore.GetArgSize(cxcore.TYPE_I64)
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1076.
 	_, prgrmFldCallCounter := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("CallCounter"), types.I32, ast.SourceFileGidNil, 0)
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1077.
 	_, prgrmFldFreeHeap := ast.MakeField(prgrm, prgrm.CXProgramNameIntern("HeapUsed"), types.I64, ast.SourceFileGidNil, 0)
 
 	// prgrmFldCaller := cxcore.MakeField("Caller", cxcore.TYPE_STRUCT, "", 0)
@@ -237,7 +209,7 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 	if err != nil {
 		panic(err)
 	}
-	prgrmFldCaller := DeclarationSpecifiersStruct(prgrm, prgrm.CXProgramNameText(callStrct.Name), prgrm.CXProgramNameText(strctPkg.Name), false, currentFile, lineNo)
+	prgrmFldCaller := DeclarationSpecifiersStruct(prgrm, prgrm.CXProgramNameText(callStrct.Name), prgrm.CXProgramNameText(strctPkg.Name), false, currentFile, lineNo, 0)
 	prgrmFldCaller.Name = prgrm.CXProgramNameIntern("Caller")
 
 	prgrmStrct.AddField(prgrm, prgrmFldCallCounter)
@@ -249,14 +221,17 @@ func AffordanceStructs(prgrm *ast.CXProgram, pkg *ast.CXPackage, currentFile ast
 
 // PrimaryIdentifier creates an identifier expression with an output name of 'ident'.
 func PrimaryIdentifier(prgrm *ast.CXProgram, ident string) []ast.CXExpression {
+	return primaryIdentifierExpressions(prgrm, prgrm.CXProgramNameIntern(ident))
+}
+
+// primaryIdentifierExpressions is PrimaryIdentifier for an interned name.
+func primaryIdentifierExpressions(prgrm *ast.CXProgram, identGid stringpool.StringGid) []ast.CXExpression {
 	pkg, err := prgrm.GetCurrentPackage()
 	if err != nil {
 		panic(err)
 	}
 
-	// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-	// Now a constructor call, site S1079.
-	_, arg := ast.MakeArgument(prgrm, prgrm.CXProgramNameIntern(ident), CurrentFile, LineNo) // fix: line numbers in errors sometimes report +1 or -1. Issue #195
+	_, arg := ast.MakeArgument(prgrm, identGid, CurrentFile, LineNo) // fix: line numbers in errors sometimes report +1 or -1. Issue #195
 	arg.SetType(types.IDENTIFIER)
 	arg.Package = ast.CXPackageIndex(pkg.Index)
 
@@ -314,4 +289,25 @@ func IsAllArgsBasicTypes(prgrm *ast.CXProgram, expr *ast.CXExpression) bool {
 		}
 	}
 	return true
+}
+
+// TokenPosition is a position of the parser, see TokenPositionPush.
+type TokenPosition struct {
+	TokenPositionLine   int
+	TokenPositionColumn int
+}
+
+// TokenPositionPush makes line and column, where the rule being reduced
+// starts, the column of the records made until TokenPositionPop, as the
+// parser may have read the token after the rule already.
+func TokenPositionPush(line int, column int) TokenPosition {
+	list := &AST.CxIrState.CompileErrorList
+	position := TokenPosition{list.CompileErrorListTokenLine, list.CompileErrorListTokenColumn}
+	AST.CXProgramCompileErrorTokenSet(CurrentFile, line, column)
+	return position
+}
+
+// TokenPositionPop restores the position TokenPositionPush returned.
+func TokenPositionPop(position TokenPosition) {
+	AST.CXProgramCompileErrorTokenSet(CurrentFile, position.TokenPositionLine, position.TokenPositionColumn)
 }

@@ -12,7 +12,7 @@ import (
 
 type cxCmdFlags struct {
 	baseOutput       bool
-	compileOutput    string
+	lexerOutput      string
 	replMode         bool
 	printHelp        bool
 	printVersion     bool
@@ -29,20 +29,19 @@ type cxCmdFlags struct {
 	executor         string
 
 	// Debug flags for the CX developers
-	debugLexer      bool
 	debugFileAccess bool
 	debugProfile    int
+	debugGoStack    bool
 }
 
 func defaultCmdFlags() cxCmdFlags {
 	return cxCmdFlags{
 		baseOutput:      false,
-		compileOutput:   "",
+		lexerOutput:     "",
 		replMode:        false,
 		printHelp:       false,
 		printEnv:        false,
 		printVersion:    false,
-		debugLexer:      false,
 		debugFileAccess: false,
 		debugProfile:    0,
 		executor:        executorAuto,
@@ -71,35 +70,34 @@ func parseFlags(options *cxCmdFlags, args []string) {
 
 	appendDash(args)
 
-	commandLine.BoolVar(&options.printVersion, "version", options.printVersion, "Print CX version")
+	commandLine.BoolVar(&options.printVersion, "version", options.printVersion, "Print the CX version and exit")
 	commandLine.BoolVar(&options.printVersion, "v", options.printVersion, "alias for -version")
-	commandLine.BoolVar(&options.printEnv, "env", options.printEnv, "Print CX environment information")
-	commandLine.BoolVar(&options.printAST, "ast", options.printAST, "Print CX Program AST")
-	commandLine.BoolVar(&options.tokenizeMode, "lexer", options.tokenizeMode, "generate a 'out.cx.txt' text file with parsed tokens")
-	commandLine.BoolVar(&options.tokenizeMode, "l", options.tokenizeMode, "alias for -tokenize")
-	commandLine.StringVar(&options.compileOutput, "co", options.compileOutput, "alias for -compile-output")
+	commandLine.BoolVar(&options.printEnv, "env", options.printEnv, "Print the CX environment (GOROOT, GOPATH, CX version, binary location) and exit")
+	commandLine.BoolVar(&options.printAST, "ast", options.printAST, "Print the AST of the source files instead of running them")
+	commandLine.BoolVar(&options.tokenizeMode, "lexer", options.tokenizeMode, "Print the lexer tokens of the first source file instead of running it")
+	commandLine.BoolVar(&options.tokenizeMode, "l", options.tokenizeMode, "alias for -lexer")
+	commandLine.StringVar(&options.lexerOutput, "lexer-output", options.lexerOutput, "File that -lexer writes the tokens to instead of stdout")
 
-	commandLine.BoolVar(&options.replMode, "repl", options.replMode, "Loads source files into memory and starts a read-eval-print loop")
+	commandLine.BoolVar(&options.replMode, "repl", options.replMode, "Compile the source files, then start a read-eval-print loop instead of running main")
 	commandLine.BoolVar(&options.replMode, "r", options.replMode, "alias for -repl")
-	commandLine.StringVar(&options.initialHeap, "heap-initial", options.initialHeap, "Set the initial heap for the CX virtual machine. The value is in bytes, but the suffixes 'G', 'M' or 'K' can be used to express gigabytes, megabytes or kilobytes, respectively. Lowercase suffixes are allowed.")
-	commandLine.StringVar(&options.initialHeap, "hi", options.initialHeap, "alias for -initial-heap")
-	commandLine.StringVar(&options.maxHeap, "heap-max", options.maxHeap, "Set the max heap for the CX virtual machine. The value is in bytes, but the suffixes 'G', 'M' or 'K' can be used to express gigabytes, megabytes or kilobytes, respectively. Lowercase suffixes are allowed. Note that this parameter overrides --heap-initial if --heap-max is equal to a lesser value than --heap-max's.")
-	commandLine.StringVar(&options.maxHeap, "hm", options.maxHeap, "alias for -max-heap")
-	commandLine.StringVar(&options.stackSize, "stack-size", options.stackSize, "Set the stack size for the CX virtual machine. The value is in bytes, but the suffixes 'G', 'M' or 'K' can be used to express gigabytes, megabytes or kilobytes, respectively. Lowercase suffixes are allowed.")
+	commandLine.StringVar(&options.initialHeap, "heap-initial", options.initialHeap, "Initial heap size of the CX virtual machine in bytes. The suffixes G, M and K (or g, m and k) mean gigabytes, megabytes and kilobytes.")
+	commandLine.StringVar(&options.initialHeap, "hi", options.initialHeap, "alias for -heap-initial")
+	commandLine.StringVar(&options.maxHeap, "heap-max", options.maxHeap, "Maximum heap size of the CX virtual machine, in the units of -heap-initial. A -heap-max below -heap-initial lowers the initial heap to it.")
+	commandLine.StringVar(&options.maxHeap, "hm", options.maxHeap, "alias for -heap-max")
+	commandLine.StringVar(&options.stackSize, "stack-size", options.stackSize, "Stack size of the CX virtual machine, in the units of -heap-initial")
 	commandLine.StringVar(&options.stackSize, "ss", options.stackSize, "alias for -stack-size")
-	commandLine.Float64Var(&options.minHeapFreeRatio, "min-heap-free", options.minHeapFreeRatio, "Minimum heap space percentage that should be free after calling the garbage collector. Value must be in the range of 0.0 and 1.0.")
-	commandLine.Float64Var(&options.maxHeapFreeRatio, "max-heap-free", options.maxHeapFreeRatio, "Maximum heap space percentage that should be free after calling the garbage collector. Value must be in the range of 0.0 and 1.0.")
-	commandLine.StringVar(&options.cxpath, "cxpath", options.cxpath, "Used for dynamically setting the value of the environment variable CXPATH")
+	commandLine.Float64Var(&options.minHeapFreeRatio, "min-heap-free", options.minHeapFreeRatio, "Fraction of the heap, from 0.0 to 1.0, kept free after a garbage collection. The heap grows when less is free. 0 keeps the default of 0.4.")
+	commandLine.Float64Var(&options.maxHeapFreeRatio, "max-heap-free", options.maxHeapFreeRatio, "Fraction of the heap, from 0.0 to 1.0, that may be free after a garbage collection. The heap shrinks when more is free. 0 keeps the default of 0.7.")
+	commandLine.StringVar(&options.cxpath, "cxpath", options.cxpath, "Workspace directory, used instead of the CXPATH environment variable")
 	commandLine.StringVar(&options.sandbox, "sandbox", options.sandbox, "Directory a running program's file opcodes are confined to. Program paths must be relative and stay inside it. Defaults to the working directory.")
 	commandLine.StringVar(&options.executor, "executor", options.executor, "Loop that runs the program: auto runs it on the flat vm when every function lowers and on the old loop otherwise, old and vm force one loop. vm fails on a program that does not lower.")
 
 	// Debug flags
-	commandLine.BoolVar(&options.debugLexer, "debug-lexer", options.debugLexer, "Debug the lexer by printing all scanner tokens")
-	commandLine.BoolVar(&options.debugLexer, "Dl", options.debugLexer, "alias for -debug-lexer")
-	commandLine.BoolVar(&options.debugFileAccess, "debug-file-access", options.debugFileAccess, "Debug file accesses by printing open/close events")
+	commandLine.BoolVar(&options.debugFileAccess, "debug-file-access", options.debugFileAccess, "Print each file the compiler opens, creates or stats")
 	commandLine.BoolVar(&options.debugFileAccess, "Df", options.debugFileAccess, "alias for -debug-file-access")
-	commandLine.IntVar(&options.debugProfile, "debug-profile", options.debugProfile, "Enable CPU+MEM profiling and set CPU profiling rate. Visualize .pprof files with \"go get github.com/google/pprof\" and \"pprof -http=:8080 file.pprof\"")
+	commandLine.IntVar(&options.debugProfile, "debug-profile", options.debugProfile, "Print the time of each compile and run phase, and write CPU and heap profiles of parsing to <cx binary>_parse_cpu.pprof and _parse_mem.pprof at this many CPU samples per second. View them with go tool pprof.")
 	commandLine.IntVar(&options.debugProfile, "Dp", options.debugProfile, "alias for -debug-profile")
+	commandLine.BoolVar(&options.debugGoStack, "debug-go-stack", options.debugGoStack, "Print the Go stack of a CX runtime error, to debug cx itself")
 
 	commandLine.Parse(args)
 

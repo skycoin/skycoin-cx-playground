@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"slices"
+
 	"github.com/skycoin/skycoin-cx/t0-types"
 	"github.com/skycoin/skycoin-cx/t1-constants"
 	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
@@ -17,11 +19,90 @@ func (arg CXArgument) IsString() bool {
 	return arg.PointerTargetType == types.STR || arg.Type == types.STR
 }
 
+// CXArgumentStringSlicePointer reports whether arg is a *[]str, which takes
+// an address as a *[]i32 does instead of the string path of a *str.
+func CXArgumentStringSlicePointer(arg *CXArgument) bool {
+	return arg.IsPointer() && arg.PointerTargetType == types.STR && arg.IsSlice()
+}
+
+// CXArgumentTakesAddress reports whether assigning input to the output element
+// out writes the address of input rather than copying its bytes.
+func CXArgumentTakesAddress(prgrm *CXProgram, out *CXArgument, input *CXTypeSignature) bool {
+	if out.PassBy == constants.PASSBY_REFERENCE {
+		return true
+	}
+	return out.IsPointer() && out.PointerTargetType != types.STR && out.Type != types.AFF && !CXTypeSignaturePointerValue(prgrm, input)
+}
+
+// CXTypeSignatureStructTakesAddress reports whether assigning input to the
+// struct or pointer struct output out writes the address of input.
+func CXTypeSignatureStructTakesAddress(prgrm *CXProgram, out *CXTypeSignature, input *CXTypeSignature) bool {
+	if out.Type == TYPE_STRUCT && out.PassBy == constants.PASSBY_REFERENCE {
+		return true
+	}
+	// A field such as b.p is the pointer when it is last.
+	pointer := out.Type == TYPE_POINTER_STRUCT && !out.IsDeref
+	if fields := prgrm.GetCXTypeSignatureStructFromArray(out.Meta).Fields; len(fields) > 0 {
+		pointer = cxArgumentPointerField(prgrm.GetCXArgFromArray(fields[len(fields)-1]))
+	}
+	return pointer && !CXTypeSignaturePointerValue(prgrm, input)
+}
+
+// CXTypeSignaturePointerValue reports whether sig reads a pointer by value, as s
+// or pa[0] do, so assigning it copies the pointer. &x and a struct literal do not.
+func CXTypeSignaturePointerValue(prgrm *CXProgram, sig *CXTypeSignature) bool {
+	if CXTypeSignaturePassBy(prgrm, sig) == constants.PASSBY_REFERENCE {
+		return false
+	}
+	switch sig.Type {
+	case TYPE_STRUCT, TYPE_POINTER_STRUCT:
+		// A field access such as b.p is decided by its last field. IsDeref of
+		// rb.p reads rb, not the field.
+		if fields := prgrm.GetCXTypeSignatureStructFromArray(sig.Meta).Fields; len(fields) > 0 {
+			return cxArgumentPointerField(prgrm.GetCXArgFromArray(fields[len(fields)-1]).GetAssignmentElement(prgrm))
+		}
+		return sig.Type == TYPE_POINTER_STRUCT && !sig.IsDeref
+	}
+	if sig.IsDeref {
+		return false
+	}
+	switch sig.Type {
+	case TYPE_POINTER_ATOMIC, TYPE_POINTER_ARRAY_ATOMIC, TYPE_POINTER_SLICE_ATOMIC:
+		return true
+	case TYPE_CXARGUMENT_DEPRECATE:
+		elt := prgrm.GetCXArgFromArray(CXArgumentIndex(sig.Meta)).GetAssignmentElement(prgrm)
+		if elt.IsPointer() {
+			return true
+		}
+		// A *i32 keeps the type i32 and ends its specifiers with the pointer. A
+		// &T{} literal ends them so too but is a struct.
+		specs := elt.DeclarationSpecifiers
+		return elt.StructType == nil && len(elt.DereferenceOperations) == 0 && len(specs) > 0 && specs[len(specs)-1] == constants.DECL_POINTER
+	}
+	return false
+}
+
 func (arg CXArgument) IsStruct() bool {
 	return arg.StructType != nil
 }
 
 func (arg CXArgument) IsSlice() bool {
+	if dims := arg.SliceArrayDimensions(); dims > 0 {
+		// An element of [][N]T, as a[i] is, is an array.
+		return len(arg.Indexes) < dims
+	}
+	if dims := arg.ArraySliceDimensions(); dims > 0 {
+		// An element of [N][]T, as a[i] is, is a slice.
+		if len(arg.Indexes) < dims || len(arg.Indexes) >= len(arg.Lengths) {
+			return false
+		}
+		for _, val := range arg.Lengths[len(arg.Indexes):] {
+			if val != 0 {
+				return false
+			}
+		}
+		return true
+	}
 	if len(arg.Lengths) > 0 {
 		for _, val := range arg.Lengths {
 			if val != 0 {
@@ -243,7 +324,7 @@ func IsTypeArrayAtomic(arg *CXArgument) bool {
 		}
 	}
 
-	return !isThereDeclPointer && arg.Type.IsPrimitive() && !arg.IsSlice() && len(arg.Lengths) > 0 && len(arg.Fields) == 0 && len(arg.DereferenceOperations) == 0 && (len(arg.DeclarationSpecifiers) >= 2 && arg.DeclarationSpecifiers[0] == constants.DECL_BASIC && arg.DeclarationSpecifiers[1] == constants.DECL_ARRAY)
+	return !isThereDeclPointer && arg.Type.IsPrimitive() && !arg.IsSlice() && len(arg.Lengths) > 0 && !slices.Contains(arg.Lengths, 0) && len(arg.Fields) == 0 && len(arg.DereferenceOperations) == 0 && (len(arg.DeclarationSpecifiers) >= 2 && arg.DeclarationSpecifiers[0] == constants.DECL_BASIC && arg.DeclarationSpecifiers[1] == constants.DECL_ARRAY)
 }
 
 func IsTypePointerArrayAtomic(arg *CXArgument) bool {
@@ -254,7 +335,7 @@ func IsTypePointerArrayAtomic(arg *CXArgument) bool {
 		}
 	}
 
-	return isThereDeclPointer && arg.Type.IsPrimitive() && !arg.IsSlice() && len(arg.Lengths) > 0 && len(arg.Fields) == 0 && len(arg.DereferenceOperations) == 0 && (len(arg.DeclarationSpecifiers) >= 2 && arg.DeclarationSpecifiers[0] == constants.DECL_BASIC && arg.DeclarationSpecifiers[1] == constants.DECL_ARRAY)
+	return isThereDeclPointer && arg.Type.IsPrimitive() && !arg.IsSlice() && len(arg.Lengths) > 0 && !slices.Contains(arg.Lengths, 0) && len(arg.Fields) == 0 && len(arg.DereferenceOperations) == 0 && (len(arg.DeclarationSpecifiers) >= 2 && arg.DeclarationSpecifiers[0] == constants.DECL_BASIC && arg.DeclarationSpecifiers[1] == constants.DECL_ARRAY)
 }
 
 func IsTypeSliceAtomic(arg *CXArgument) bool {
@@ -322,6 +403,7 @@ func argumentDebugAlloc(prgrm *CXProgram, fileName SourceFileGid, fileLine int) 
 	details := manager.CXArgumentDebugGet(gid)
 	details.FileName = fileName
 	details.FileLine = fileLine
+	details.FileColumn = prgrm.CXProgramCompileErrorColumn(fileName, fileLine)
 	return gid
 }
 
@@ -334,4 +416,59 @@ func CXArgumentDebugFileLine(prgrm *CXProgram, gid CXArgumentDebugGid) (string, 
 	}
 	details := prgrm.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet(gid)
 	return prgrm.CXProgramSourceFileText(details.FileName), details.FileLine
+}
+
+// cxArgumentPointerField reports whether the field access arg is a pointer,
+// also a *i32, which keeps the type i32 and ends its specifiers with it.
+func cxArgumentPointerField(arg *CXArgument) bool {
+	if arg.IsPointer() {
+		return true
+	}
+	specs := arg.DeclarationSpecifiers
+	return arg.StructType == nil && len(arg.DereferenceOperations) == 0 && len(arg.Indexes) == 0 && len(specs) > 0 && specs[len(specs)-1] == constants.DECL_POINTER
+}
+
+// ArraySliceDimensions returns the number of array dimensions of an array
+// of slices, 1 for [N][]T, and 0 for any other type.
+func (arg CXArgument) ArraySliceDimensions() int {
+	for i, length := range arg.Lengths {
+		if length == 0 {
+			return i
+		}
+	}
+	return 0
+}
+
+// SliceArrayDimensions returns the number of slice dimensions of a slice of
+// arrays, 1 for [][N]T, and 0 for any other type.
+func (arg CXArgument) SliceArrayDimensions() int {
+	for i, length := range arg.Lengths {
+		if length != 0 {
+			return i
+		}
+	}
+	return 0
+}
+
+// ValueSizeOfLengths returns the size of a value of the array and slice
+// lengths, outermost first, whose innermost elements take elem bytes.
+func ValueSizeOfLengths(lengths []types.Pointer, elem types.Pointer) types.Pointer {
+	size := elem
+	for i := len(lengths) - 1; i >= 0; i-- {
+		if lengths[i] == 0 {
+			size = types.POINTER_SIZE
+		} else {
+			size *= lengths[i]
+		}
+	}
+	return size
+}
+
+// ArraySize returns the size in bytes of the array arg, whose elements are
+// slice headers when it is an array of slices.
+func (arg CXArgument) ArraySize() types.Pointer {
+	if dims := arg.ArraySliceDimensions(); dims > 0 {
+		return types.POINTER_SIZE * types.TotalLength(arg.Lengths[:dims])
+	}
+	return arg.Size * types.TotalLength(arg.Lengths)
 }

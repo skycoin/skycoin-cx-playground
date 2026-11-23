@@ -42,8 +42,8 @@ func RegisterOpcodes(prgrm *ast.CXProgram) {
 	RegisterOpCode(prgrm, constants.OP_JMP_ZERO, "jmpzero", nil, In(ast.ConstCxArg_UND_TYPE), nil)
 	RegisterOpCode(prgrm, constants.OP_JMP_NOT_ZERO, "jmpnotzero", nil, In(ast.ConstCxArg_UND_TYPE), nil)
 
-	RegisterOpCode(prgrm, constants.OP_SERIALIZE, "serialize", opSerialize, In(ast.ConstCxArg_Affordance), Out(ast.ConstCxArg_PTR))
-	RegisterOpCode(prgrm, constants.OP_DESERIALIZE, "deserialize", opDeserialize, In(ast.ConstCxArg_I32), nil)
+	RegisterOpCode(prgrm, constants.OP_SERIALIZE, "serialize", opSerialize, In(ast.Slice(types.AFF)), Out(ast.Slice(types.UI8)))
+	RegisterOpCode(prgrm, constants.OP_DESERIALIZE, "deserialize", opDeserialize, In(ast.Slice(types.UI8)), nil)
 
 	RegisterOpCode(prgrm, constants.OP_EQUAL, "eq", nil, In(ast.ConstCxArg_UND_TYPE, ast.ConstCxArg_UND_TYPE), Out(ast.ConstCxArg_BOOL))
 	RegisterOpCode(prgrm, constants.OP_UNEQUAL, "uneq", nil, In(ast.ConstCxArg_UND_TYPE, ast.ConstCxArg_UND_TYPE), Out(ast.ConstCxArg_BOOL))

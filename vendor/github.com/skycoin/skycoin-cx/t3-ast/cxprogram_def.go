@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"bufio"
 	"os"
 
 	"github.com/skycoin/skycoin-cx/t0-types"
@@ -46,6 +47,10 @@ type CXProgram struct {
 	// ProgramSandboxRoot is the directory every program file opcode resolves
 	// in, opened once at run start, see #433. Nil means file opcodes fail.
 	ProgramSandboxRoot *os.Root
+
+	// ProgramStdin is the one reader read() takes lines from for the whole run,
+	// set by ProgramStdinInit, see skycoin/cx#110. Nil reads as end of input.
+	ProgramStdin *bufio.Reader
 
 	// Used by the REPL and cxgo
 	CurrentPackage CXPackageIndex // Represents the currently active package in the REPL or when parsing a CX file.

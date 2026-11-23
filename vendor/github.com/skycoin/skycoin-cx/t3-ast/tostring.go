@@ -3,6 +3,8 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	cxpackages "github.com/skycoin/skycoin-cx/t0-packages" // thin: only IsDefaultPackage; no depth gain
@@ -31,7 +33,7 @@ func buildStrImports(prgrm *CXProgram, pkg *CXPackage, ast *string) {
 	}
 
 	count := 0
-	for _, impIdx := range pkg.Imports {
+	for _, impIdx := range slices.Sorted(maps.Values(pkg.Imports)) {
 		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
 		// Now an arena getter, site S0476.
 		impPkg, err := prgrm.GetPackageFromArray(impIdx)
@@ -67,7 +69,7 @@ func buildStrStructs(prgrm *CXProgram, pkg *CXPackage, ast *string) {
 	}
 
 	count := 0
-	for _, strctIdx := range pkg.Structs {
+	for _, strctIdx := range slices.Sorted(maps.Values(pkg.Structs)) {
 		strct := prgrm.CXStructs[strctIdx]
 		*ast += fmt.Sprintf("\t\t%d.- Struct: %s\n", count, prgrm.CXProgramNameText(strct.Name))
 
@@ -93,9 +95,10 @@ func buildStrFunctions(prgrm *CXProgram, pkg *CXPackage, ast1 *string) {
 	}
 
 	// We need to declare the counter outside so we can
-	// ignore the increment from the `*init` function.
+	// ignore the increment from the `*init` function. Functions print in
+	// declaration order, the order of their indexes.
 	var j int
-	for _, fnIdx := range pkg.Functions {
+	for _, fnIdx := range slices.Sorted(maps.Values(pkg.Functions)) {
 		// OBJMODEL: state.CXFunctionMng.CXFunctionGet(gid), phase 5 #352.
 		// Now an arena getter, site S0479.
 		fn := prgrm.GetFunctionFromArray(fnIdx)
@@ -201,7 +204,7 @@ func BuildStrPackages(prgrm *CXProgram, ast *string) {
 	// We need to declare the counter outside so we can
 	// ignore the increments from core or stdlib packages.
 	var i int
-	for _, pkgIdx := range prgrm.Packages {
+	for _, pkgIdx := range packagesOrdered(prgrm) {
 		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
 		// Now an arena getter, site S0484.
 		pkg, err := prgrm.GetPackageFromArray(pkgIdx)
@@ -222,6 +225,31 @@ func BuildStrPackages(prgrm *CXProgram, ast *string) {
 
 		i++
 	}
+}
+
+// packagesOrdered returns the packages of prgrm with each one after the
+// packages it imports, in the order they were declared or imported, so -ast
+// prints the same order on every run.
+func packagesOrdered(prgrm *CXProgram) []CXPackageIndex {
+	ordered := make([]CXPackageIndex, 0, len(prgrm.Packages))
+	visited := map[CXPackageIndex]bool{}
+	var visit func(pkgIdx CXPackageIndex)
+	visit = func(pkgIdx CXPackageIndex) {
+		if visited[pkgIdx] {
+			return
+		}
+		visited[pkgIdx] = true
+		if pkg, err := prgrm.GetPackageFromArray(pkgIdx); err == nil {
+			for _, impIdx := range slices.Sorted(maps.Values(pkg.Imports)) {
+				visit(impIdx)
+			}
+		}
+		ordered = append(ordered, pkgIdx)
+	}
+	for _, pkgIdx := range slices.Sorted(maps.Values(prgrm.Packages)) {
+		visit(pkgIdx)
+	}
+	return ordered
 }
 
 // getFormattedParam is an auxiliary function for `ToString`. It formats the
@@ -589,8 +617,9 @@ func GetFormattedType(prgrm *CXProgram, typeSig *CXTypeSignature) string {
 
 		arrLen := len(arrayData.Lengths) - len(arrayData.Indexes)
 		if arrLen != 0 {
-			for _, len := range arrayData.Lengths[len(arrayData.Indexes):] {
-				typ = fmt.Sprintf("[%d]%s", len, typ)
+			dims := arrayData.Lengths[len(arrayData.Indexes):]
+			for i := len(dims) - 1; i >= 0; i-- {
+				typ = fmt.Sprintf("[%d]%s", dims[i], typ)
 			}
 		}
 
@@ -605,8 +634,9 @@ func GetFormattedType(prgrm *CXProgram, typeSig *CXTypeSignature) string {
 
 		arrLen := len(arrayData.Lengths) - len(arrayData.Indexes)
 		if arrLen != 0 {
-			for _, len := range arrayData.Lengths[len(arrayData.Indexes):] {
-				typ = fmt.Sprintf("[%d]%s", len, typ)
+			dims := arrayData.Lengths[len(arrayData.Indexes):]
+			for i := len(dims) - 1; i >= 0; i-- {
+				typ = fmt.Sprintf("[%d]%s", dims[i], typ)
 			}
 		}
 
@@ -746,7 +776,7 @@ func getFormattedType_CXArg(prgrm *CXProgram, arg *CXArgument) string {
 					pkg, err := prgrm.GetPackageFromArray(arg.Package)
 					if err != nil {
 						prgrm.CXProgramCompileErrorAddDebug(CompileErrorCodeMessage, elt.ArgDetails, CompileErrorOperands{prgrm.CXProgramCompileErrorText(err.Error())})
-						prgrm.CXProgramCompileErrorExit()
+						return typ
 					}
 
 					fn, err := pkg.GetFunction(prgrm, elt.Name)

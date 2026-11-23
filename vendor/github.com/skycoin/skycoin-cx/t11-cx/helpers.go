@@ -21,7 +21,7 @@ import (
 	"github.com/skycoin/skycoin-cx/t4-actions"
 	"github.com/skycoin/skycoin-cx/t5-cx-runtime-printer"
 	cxinit "github.com/skycoin/skycoin-cx/t7-init"             // thin: only MakeProgram, RegisterPackages; no depth gain
-	cxgo "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor" // thin: only DebugLexer, Tokenize; no depth gain
+	cxgo "github.com/skycoin/skycoin-cx/t8-cxparsingcompletor" // thin: only Tokenize; no depth gain
 	cxparsing "github.com/skycoin/skycoin-cx/t9-cxparsing"     // thin: only AddInitFunction, ParseSourceCode; no depth gain
 )
 
@@ -136,10 +136,10 @@ func printTokenize(options cxCmdFlags, fileNames []string) {
 		lines = strings.Split(file_content, "\n")
 	}
 
-	if options.compileOutput == "" {
+	if options.lexerOutput == "" {
 		w = os.Stdout
 	} else {
-		tokenFilename := options.compileOutput
+		tokenFilename := options.lexerOutput
 		w, err = util.CXCreateFile(tokenFilename)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "ProgramError writing:", tokenFilename, err)

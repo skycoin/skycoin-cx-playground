@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/skycoin/skycoin-cx/t0-types"
 	objmodel "github.com/skycoin/skycoin-cx/t1-cx-core-objmodel"
 	stringpool "github.com/skycoin/skycoin-cx/t2-cx-core-stringpool"
 )
@@ -153,10 +154,10 @@ func (fn *CXFunction) AddOutput(prgrm *CXProgram, param *CXArgument) *CXFunction
 
 	param.Package = fn.Package
 
-	// An array output stays a CXArgument, the call, return and assignment paths
-	// have no array signature case.
+	// An array output, or a pointer to one, stays a CXArgument, the call,
+	// return and assignment paths have no array signature case.
 	var newFieldIdx CXTypeSignatureIndex
-	if IsTypeArrayAtomic(param) {
+	if IsTypeArrayAtomic(param) || IsTypePointerArrayAtomic(param) {
 		newFieldIdx = AllocCXTypeSignatureOfCXArgDeprecate(prgrm, param)
 	} else {
 		newFieldIdx = AllocCXTypeSignatureOfCXArgBuilder(prgrm, param)
@@ -325,6 +326,7 @@ func MakeCXLineExpression(prgrm *CXProgram, fileName SourceFileGid, lineNo int, 
 	line := prgrm.CxIrState.CXLineMng.CXLineGet(lineGid)
 	line.FileName = fileName
 	line.LineNumber = lineNo
+	line.LineColumn = prgrm.CXProgramCompileErrorColumn(fileName, lineNo)
 	line.LineStr = lineStr
 	index := int(objmodel.GidIndex(int64(lineGid)))
 
@@ -365,3 +367,30 @@ func (fn *CXFunction) SelectExpression(line int) (*CXExpression, error) {
 	return &expr, nil
 }
 
+// CXFunctionEscape says where a function may keep the address an input holds.
+type CXFunctionEscape uint8
+
+const (
+	// CXFunctionEscapeNone keeps it only for the call.
+	CXFunctionEscapeNone CXFunctionEscape = iota
+	// CXFunctionEscapeResult may return it in an output.
+	CXFunctionEscapeResult
+	// CXFunctionEscapeHeap may keep it after the call.
+	CXFunctionEscapeHeap
+)
+
+// CXFunctionSlot is a local of a function that holds a pointer, slice or str,
+// with its declared type. The GC walks it as a root by its GCType.
+type CXFunctionSlot struct {
+	// CXFunctionSlotOffset is the offset of the local, flagged when it escaped.
+	CXFunctionSlotOffset types.Pointer
+	// CXFunctionSlotLengths are the lengths of the arrays and slices of the
+	// local, outermost first, as CXArgument.Lengths.
+	CXFunctionSlotLengths []types.Pointer
+	// CXFunctionSlotType is the base type of the local, types.STR for a str.
+	CXFunctionSlotType types.Code
+	// CXFunctionSlotSpecifiers are the declaration specifiers of the local.
+	CXFunctionSlotSpecifiers []int
+	// CXFunctionSlotStruct is the struct the local is made of, or nil.
+	CXFunctionSlotStruct *CXStruct
+}

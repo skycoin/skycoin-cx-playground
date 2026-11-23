@@ -1,8 +1,10 @@
 package ast
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/skycoin/skycoin-cx/t0-types"
 	objmodel "github.com/skycoin/skycoin-cx/t1-cx-core-objmodel"
@@ -20,10 +22,29 @@ type DataSegmentStruct struct {
 	StartsAt types.Pointer // Offset at which the data segment starts in a CX program's memory
 }
 
+// HeapVisit is a pointer or slice the mark followed, and its GCType.
+type HeapVisit struct {
+	HeapVisitAddress types.Pointer
+	HeapVisitType    *GCType
+}
+
 type HeapSegmentStruct struct {
 	Size     types.Pointer // This field stores the size of a CX program's heap
 	StartsAt types.Pointer // Offset at which the heap starts in a CX program's memory (normally the stack size)
 	Pointer  types.Pointer // At what offset a CX program can insert a new object to the heap
+	// ObjectStarts lists the address of each object, for the collection running.
+	ObjectStarts []types.Pointer
+	// Slots lists the address of each reference the mark read.
+	Slots []types.Pointer
+	// Visited holds the pointers and slices the mark followed.
+	Visited map[HeapVisit]bool
+	// Work holds the pointers and slices the mark has yet to follow.
+	Work []HeapVisit
+	// Pinned is an address inside an object that Go code holds across an
+	// allocation, or 0. The collection keeps its object and moves it.
+	Pinned types.Pointer
+	// Types holds the GCTypes of the roots, built by the first collection.
+	Types *GCTypeCache
 }
 
 // ----------------------------------------------------------------
@@ -581,6 +602,11 @@ func (cxprogram *CXProgram) GetOperation(expr *CXExpression) (*CXAtomicOperator,
 }
 
 func (cxprogram *CXProgram) GetPreviousCXLine(exprs []CXExpression, currIndex int) (*CXLine, error) {
+	// A runtime error while the inputs of an empty function are copied stops at
+	// line 0 of a call with no expressions.
+	if currIndex >= len(exprs) {
+		currIndex = len(exprs) - 1
+	}
 	for i := currIndex; i >= 0; i-- {
 		if exprs[i].Type == CX_LINE {
 			_, cxLine, err := cxprogram.GetOperation(&exprs[i])
@@ -788,4 +814,9 @@ func (cxprogram *CXProgram) GetFramePointer() int {
 // human-readable format.
 func (cxprogram *CXProgram) PrintProgram() {
 	fmt.Println(ToString(cxprogram))
+}
+
+// ProgramStdinInit makes reader the input of read() for the rest of the run.
+func (prgrm *CXProgram) ProgramStdinInit(reader io.Reader) {
+	prgrm.ProgramStdin = bufio.NewReader(reader)
 }

@@ -461,9 +461,15 @@ func getSlice(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValue)
 		panic(types.CX_RUNTIME_INVALID_ARGUMENT)
 	}
 
-	count = inputs[2].Get_ptr(prgrm)
 	outputSlicePointer = outputs[0].Offset
 	sizeofElement = inpSize
+	// The count is a ui64. One past what the heap can hold reads nothing.
+	count64 := inputs[2].Get_ui64(prgrm)
+	if count64 > uint64(ast.SliceElementLimit(sizeofElement)) {
+		outputSliceOffset = ast.GetSliceOffset(prgrm, inputs[1].FramePointer, inputs[1].TypeSignature)
+		return
+	}
+	count = types.Pointer(count64)
 	outputSliceOffset = ast.SliceResize(prgrm, outputs[0].FramePointer, outputs[0].TypeSignature, inputs[1].TypeSignature, count, sizeofElement)
 	return
 }

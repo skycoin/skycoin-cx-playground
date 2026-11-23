@@ -129,17 +129,17 @@ func queryParam(prgrm *ast.CXProgram, fn *ast.CXFunction, argsIdx []ast.CXArgume
 
 			// then it's struct type
 			// typOffset = WriteObjectRetOff(encoder.Serialize(elt.StructType.Package.Name + "." + elt.StructType.Name))
-			typOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(strctTypePkg.Name)+"."+prgrm.CXProgramNameText(elt.StructType.Name))
+			typOffset = ast.AllocateStr(prgrm, prgrm.CXProgramNameText(strctTypePkg.Name)+"."+prgrm.CXProgramNameText(elt.StructType.Name))
 		} else {
 			// then it's native type
 			// typOffset = WriteObjectRetOff(encoder.Serialize(TypeNames[elt.Type]))
-			typOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, elt.Type.Name())
+			typOffset = ast.AllocateStr(prgrm, elt.Type.Name())
 		}
 
 		// Name
 		// argNameB := encoder.Serialize(arg.Name)
 		// argNameOffset := int32(WriteObjectRetOff(argNameB))
-		argNameOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(arg.Name))
+		argNameOffset := ast.AllocateStr(prgrm, prgrm.CXProgramNameText(arg.Name))
 
 		argOffset := ast.AllocateSeq(prgrm, types.OBJECT_HEADER_SIZE+types.STR_SIZE+types.I32_SIZE+types.STR_SIZE)
 		types.Write_ptr(prgrm.Memory, argOffset+types.OBJECT_HEADER_SIZE, argNameOffset)
@@ -157,7 +157,7 @@ func queryParam(prgrm *ast.CXProgram, fn *ast.CXFunction, argsIdx []ast.CXArgume
 
 			// affNameB := encoder.Serialize(fmt.Sprintf("%s.%d", exprLbl, i))
 			// affNameOffset := AllocateSeq(len(affNameB))
-			affNameOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, fmt.Sprintf("%s.%d", exprLbl, i))
+			affNameOffset := ast.AllocateStr(prgrm, fmt.Sprintf("%s.%d", exprLbl, i))
 			// WriteMemory(affNameOffset, affNameB)
 
 			var affNameOffsetBytes [4]byte
@@ -255,10 +255,10 @@ func QueryExpressions(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpr
 		opNameOffset := types.Pointer(0)
 		if exCXAtomicOpOperator.IsBuiltIn() {
 			// opNameB = encoder.Serialize(OpNames[ex.Operator.OpCode])
-			opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, ast.OpNames[exCXAtomicOpOperator.AtomicOPCode])
+			opNameOffset = ast.AllocateStr(prgrm, ast.OpNames[exCXAtomicOpOperator.AtomicOPCode])
 		} else {
 			// opNameB = encoder.Serialize(ex.Operator.Name)
-			opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(exCXAtomicOpOperator.Name))
+			opNameOffset = ast.AllocateStr(prgrm, prgrm.CXProgramNameText(exCXAtomicOpOperator.Name))
 		}
 
 		// opNameOffset := AllocateSeq(len(opNameB))
@@ -272,7 +272,7 @@ func QueryExpressions(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpr
 
 			// lblNameB := encoder.Serialize(ex.Label)
 			// lblNameOffset := AllocateSeq(len(lblNameB))
-			lblNameOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(exCXAtomicOp.Label))
+			lblNameOffset := ast.AllocateStr(prgrm, prgrm.CXProgramNameText(exCXAtomicOp.Label))
 			// WriteMemory(lblNameOffset, lblNameB)
 			var lblNameOffsetB [4]byte
 			types.Write_ptr(lblNameOffsetB[:], 0, lblNameOffset)
@@ -318,11 +318,11 @@ func getSignatureSlice(prgrm *ast.CXProgram, params []ast.CXArgumentIndex, param
 
 			// then it's struct type
 			// typOffset = WriteObjectRetOff(encoder.Serialize(param.StructType.Package.Name + "." + param.StructType.Name))
-			typOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(strctTypePkg.Name)+"."+prgrm.CXProgramNameText(param.StructType.Name))
+			typOffset = ast.AllocateStr(prgrm, prgrm.CXProgramNameText(strctTypePkg.Name)+"."+prgrm.CXProgramNameText(param.StructType.Name))
 		} else {
 			// then it's native type
 			// typOffset = WriteObjectRetOff(encoder.Serialize(TypeNames[param.Type]))
-			typOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, param.Type.Name())
+			typOffset = ast.AllocateStr(prgrm, param.Type.Name())
 		}
 
 		var typOffsetB [types.POINTER_SIZE]byte
@@ -340,7 +340,7 @@ func queryStructsInPackage(prgrm *ast.CXProgram, fn *ast.CXFunction, strctOffset
 		// strctNameB := encoder.Serialize(f.Name)
 
 		// strctNameOffset := WriteObjectRetOff(strctNameB)
-		strctNameOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(f.Name))
+		strctNameOffset := ast.AllocateStr(prgrm, prgrm.CXProgramNameText(f.Name))
 		var strctNameOffsetB [types.POINTER_SIZE]byte
 		types.Write_ptr(strctNameOffsetB[:], 0, strctNameOffset)
 
@@ -414,10 +414,10 @@ func QueryFunction(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpress
 		opNameOffset := types.Pointer(0)
 		if f.IsBuiltIn() {
 			// opNameB = encoder.Serialize(OpNames[f.OpCode])
-			opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, ast.OpNames[f.AtomicOPCode])
+			opNameOffset = ast.AllocateStr(prgrm, ast.OpNames[f.AtomicOPCode])
 		} else {
 			// opNameB = encoder.Serialize(f.Name)
-			opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(f.Name))
+			opNameOffset = ast.AllocateStr(prgrm, prgrm.CXProgramNameText(f.Name))
 		}
 
 		var opNameOffsetB [types.POINTER_SIZE]byte
@@ -458,7 +458,7 @@ func QueryCaller(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpressio
 	opNameOffset := types.Pointer(0)
 	if call.Operator.IsBuiltIn() {
 		// opNameB = encoder.Serialize(OpNames[call.Operator.OpCode])
-		opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, ast.OpNames[call.Operator.AtomicOPCode])
+		opNameOffset = ast.AllocateStr(prgrm, ast.OpNames[call.Operator.AtomicOPCode])
 	} else {
 		// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
 		// Now an arena getter, site S1276.
@@ -467,7 +467,7 @@ func QueryCaller(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpressio
 			panic(err)
 		}
 		// opNameB = encoder.Serialize(call.Operator.Package.Name + "." + call.Operator.Name)
-		opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(opPkg.Name)+"."+prgrm.CXProgramNameText(call.Operator.Name))
+		opNameOffset = ast.AllocateStr(prgrm, prgrm.CXProgramNameText(opPkg.Name)+"."+prgrm.CXProgramNameText(call.Operator.Name))
 	}
 
 	callOffset := ast.AllocateSeq(prgrm, types.OBJECT_HEADER_SIZE+types.STR_SIZE+types.I32_SIZE)
@@ -505,7 +505,7 @@ func QueryProgram(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpressi
 		opNameOffset := types.Pointer(0)
 		if call.Operator.IsBuiltIn() {
 			// opNameB = encoder.Serialize(OpNames[call.Operator.OpCode])
-			opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, ast.OpNames[call.Operator.AtomicOPCode])
+			opNameOffset = ast.AllocateStr(prgrm, ast.OpNames[call.Operator.AtomicOPCode])
 		} else {
 			// OBJMODEL: state.CXPackageMng.CXPackageGet(gid), phase 5 #362.
 			// Now an arena getter, site S1277.
@@ -515,7 +515,7 @@ func QueryProgram(prgrm *ast.CXProgram, fn *ast.CXFunction, expr *ast.CXExpressi
 			}
 
 			// opNameB = encoder.Serialize(call.Operator.Package.Name + "." + call.Operator.Name)
-			opNameOffset = types.AllocWrite_str_data(prgrm, prgrm.Memory, prgrm.CXProgramNameText(opPkg.Name)+"."+prgrm.CXProgramNameText(call.Operator.Name))
+			opNameOffset = ast.AllocateStr(prgrm, prgrm.CXProgramNameText(opPkg.Name)+"."+prgrm.CXProgramNameText(call.Operator.Name))
 		}
 
 		// callOffset := AllocateSeq(OBJECT_HEADER_SIZE + STR_SIZE + I32_SIZE)
@@ -1280,7 +1280,7 @@ func opAffQuery(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 					// argB := encoder.Serialize("arg")
 					// argOffset := AllocateSeq(len(argB))
 					// WriteMemory(argOffset, argB)
-					argOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, "arg")
+					argOffset := ast.AllocateStr(prgrm, "arg")
 					var argOffsetB [4]byte
 					types.Write_ptr(argOffsetB[:], 0, argOffset)
 
@@ -1288,7 +1288,7 @@ func opAffQuery(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 					// exprB := encoder.Serialize("expr")
 					// exprOffset := AllocateSeq(len(exprB))
 					// WriteMemory(exprOffset, exprB)
-					exprOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, "expr")
+					exprOffset := ast.AllocateStr(prgrm, "expr")
 					var exprOffsetB [4]byte
 					types.Write_ptr(exprOffsetB[:], 0, exprOffset)
 
@@ -1296,7 +1296,7 @@ func opAffQuery(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 					// fnB := encoder.Serialize("fn")
 					// fnOffset := AllocateSeq(len(fnB))
 					// WriteMemory(fnOffset, fnB)
-					fnOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, "fn")
+					fnOffset := ast.AllocateStr(prgrm, "fn")
 					var fnOffsetB [4]byte
 					types.Write_ptr(fnOffsetB[:], 0, fnOffset)
 
@@ -1304,7 +1304,7 @@ func opAffQuery(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 					// strctB := encoder.Serialize("strct")
 					// strctOffset := AllocateSeq(len(strctB))
 					// WriteMemory(strctOffset, strctB)
-					strctOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, "strct")
+					strctOffset := ast.AllocateStr(prgrm, "strct")
 					var strctOffsetB [4]byte
 					types.Write_ptr(strctOffsetB[:], 0, strctOffset)
 
@@ -1312,7 +1312,7 @@ func opAffQuery(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 					// callerB := encoder.Serialize("caller")
 					// callerOffset := AllocateSeq(len(callerB))
 					// WriteMemory(callerOffset, callerB)
-					callerOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, "caller")
+					callerOffset := ast.AllocateStr(prgrm, "caller")
 					var callerOffsetB [4]byte
 					types.Write_ptr(callerOffsetB[:], 0, callerOffset)
 
@@ -1320,7 +1320,7 @@ func opAffQuery(prgrm *ast.CXProgram, inputs []ast.CXValue, outputs []ast.CXValu
 					// prgrmB := encoder.Serialize("prgrm")
 					// prgrmOffset := AllocateSeq(len(prgrmB))
 					// WriteMemory(prgrmOffset, prgrmB)
-					prgrmOffset := types.AllocWrite_str_data(prgrm, prgrm.Memory, "prgrm")
+					prgrmOffset := ast.AllocateStr(prgrm, "prgrm")
 					var prgrmOffsetB [4]byte
 					types.Write_ptr(prgrmOffsetB[:], 0, prgrmOffset)
 

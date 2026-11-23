@@ -29,6 +29,7 @@
 	// Parse() is the function that is called from main().
 	// It is needed because yyParse is not exported.
 	func Parse(code string) int {
+		yyErrorVerbose = true
 		codeBuf := bytes.NewBufferString(code)
 		return yyParse(NewLexer(codeBuf))
 	}
@@ -67,6 +68,7 @@
 	ints    []int
 
 	line int
+	column int
 
 	// OBJMODEL: CXArgumentGid, the parser value stack lives across Allocs, phase 4 #326.
 	// Now a pointer at rest, site S1394.
@@ -139,29 +141,31 @@
 
                         yyDefault
 
-%type   <i32>           int_value
-
 %type   <tok>           unary_operator
 %type   <i>             type_specifier
 %type   <argument>      declaration_specifiers
+%type   <argument>      element_specifiers
+%type   <argument>      array_element
 %type   <argument>      declarator
 %type   <argument>      direct_declarator
 %type   <argument>      parameter_declaration
 %type   <arguments>     parameter_type_list
 %type   <arguments>     function_parameters
+%type   <arguments>     function_results
+%type   <arguments>     result_type_list
 %type   <arguments>     parameter_list
 %type   <arguments>     fields
 %type   <arguments>     struct_fields
 %type   <arguments>     id_list
 %type   <arguments>     types_list
+%type   <arguments>     var_names
+%type   <ints>          var_values
                                                 
 %type   <functionIndex>      function_header
 
 %type   <ints>          indexing_literal
 %type   <ints>          indexing_slice_literal
 
-                        // for struct literals
-%right                  IDENTIFIER LBRACE
 
 //%start
                         
@@ -178,50 +182,87 @@ external_declaration:
         |       function_declaration
         |       import_declaration
         |       struct_declaration
-
-       // |       stepping
         ;
 
-/*
-stepping:       TSTEP int_value int_value
-        |       STEP int_value
-        ;
-*/
-
+// A var declaration declares one or more names, or a parenthesized group of
+// such specs, as in Go (https://go.dev/ref/spec#Variable_declarations).
 global_declaration:
-                VAR declarator declaration_specifiers SEMICOLON
+                VAR global_var_spec SEMICOLON
+        |       VAR LPAREN global_var_specs RPAREN SEMICOLON
+        |       VAR LPAREN RPAREN SEMICOLON
+                ;
+
+global_var_specs:
+                global_var_spec
+        |       global_var_specs SEMICOLON global_var_spec
+        |       global_var_specs SEMICOLON
+                ;
+
+global_var_spec:
+                var_names declaration_specifiers
                 {
-			actions.DeclareGlobalInPackage(Program,nil,$2, $3, nil, false)
+			actions.DeclareGlobals(Program, $1, $2, nil, nil, false)
                 }
-        |       VAR declarator declaration_specifiers ASSIGN initializer SEMICOLON
+        |       var_names declaration_specifiers ASSIGN var_values
                 {
-			actions.DeclareGlobalInPackage(Program,nil,$2, $3, nil, false)
+			actions.DeclareGlobals(Program, $1, $2, nil, varValues(yylex, $4), true)
+                }
+        |       var_names ASSIGN var_values
+                {
+			actions.DeclareGlobals(Program, $1, nil, nil, varValues(yylex, $3), true)
+                }
+                ;
+
+var_names:
+                declarator
+                {
+			$$ = []*ast.CXArgument{$1}
+                }
+        |       var_names COMMA declarator
+                {
+			$$ = append($1, $3)
+                }
+                ;
+
+// var_values holds the index of each value in the values the lexer read, see
+// varValueRead.
+var_values:
+                conditional_expression
+                {
+			$$ = []int{varValueRead(yylex, $<line>1, $<column>1)}
+                }
+        |       var_values COMMA conditional_expression
+                {
+			$$ = append($1, varValueRead(yylex, $<line>3, $<column>3))
                 }
                 ;
 
 struct_declaration:
                 TYPE IDENTIFIER STRUCT struct_fields
                 {
-			actions.DeclareStruct(Program,$2, $4)
+			actions.DeclareStruct(Program,$2, $4, CurrentFile, $<line>2, $<column>2)
                 }
                 ;
 
+// A semicolon may be omitted before the closing brace, as in Go.
 struct_fields:
                 LBRACE RBRACE SEMICOLON
                 { $$ = nil }
         |       LBRACE fields RBRACE SEMICOLON
                 { $$ = $2 }
+        |       LBRACE fields SEMICOLON RBRACE SEMICOLON
+                { $$ = $2 }
         ;
 
-fields:         parameter_declaration SEMICOLON
+fields:         parameter_declaration
                 {
 			// OBJMODEL: state.CXArgumentMng (manager storage) or []CXArgumentGid, phase 4 #326.
 			// Now a slice of objects, site S1399.
 			$$ = []*ast.CXArgument{$1}
                 }
-        |       fields parameter_declaration SEMICOLON
+        |       fields SEMICOLON parameter_declaration
                 {
-			$$ = append($1, $2)
+			$$ = append($1, $3)
                 }
         ;
 
@@ -245,7 +286,8 @@ function_header:
 			if pkg, err := Program.GetCurrentPackage(); err == nil {
 				// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
 				// Now a constructor call, site S1400.
-				fn := ast.MakeFunction(Program, Program.CXProgramNameIntern($2), CurrentFile, lineNo)
+				fn := ast.MakeFunction(Program, Program.CXProgramNameIntern($2), CurrentFile, $<line>2)
+				fn.FileColumn = $<column>2
 				_,fnIdx:=pkg.AddFunction(Program,fn)
                                 pkg.CurrentFunction=fnIdx
 
@@ -256,22 +298,21 @@ function_header:
                 }
         |       FUNC LPAREN parameter_type_list RPAREN IDENTIFIER
                 {
-			if len($3) > 1 {
-				panic("method has multiple receivers")
-			}
+			receiver := actions.MethodReceiver(Program, $3)
 
-			receiverName := $3[0].StructType.Name
+			receiverName := receiver[0].StructType.Name
 			methodName := Program.CXProgramNameIntern($5)
 
 			if pkg, err := Program.GetCurrentPackage(); err == nil {
 				// OBJMODEL: state.CXFunctionMng.CXFunctionAlloc(), phase 4 #351.
 				// Now a constructor call, site S1401.
-				fn := ast.MakeFunction(Program, Program.CXProgramMethodNameIntern(receiverName, methodName), CurrentFile, lineNo)
+				fn := ast.MakeFunction(Program, Program.CXProgramMethodNameIntern(receiverName, methodName), CurrentFile, $<line>5)
+				fn.FileColumn = $<column>5
 				_,fnIdx:=pkg.AddMethod(Program,fn,receiverName,methodName)
                                 // OBJMODEL: state.CXFunctionMng.CXFunctionGet(gid), phase 5 #352.
                                 // Now an arena getter, site S1402.
                                 newFn:=Program.GetFunctionFromArray(fnIdx)
-                                newFn.AddInput(Program,$3[0])
+                                newFn.AddInput(Program,receiver[0])
                                 
                                 pkg.CurrentFunction=fnIdx
 
@@ -289,14 +330,39 @@ function_parameters:
                 { $$ = $2 }
                 ;
 
+// A result list holds names and types, (r i32, s str), or only types,
+// (i32, str), as in Go. Unnamed results get hidden names.
+function_results:
+                function_parameters
+        |       LPAREN result_type_list RPAREN
+                {
+			$$ = actions.FunctionResultsUnnamed(Program, $2)
+                }
+        ;
+
+result_type_list:
+                declaration_specifiers
+                {
+			$$ = []*ast.CXArgument{$1}
+                }
+        |       result_type_list COMMA declaration_specifiers
+                {
+			$$ = append($1, $3)
+                }
+        ;
+
 function_declaration:
-                function_header function_parameters compound_statement
+                function_header function_parameters compound_statement SEMICOLON
                 {
 			PreFunctionDeclaration($1, $2, nil)
                 }
-        |       function_header function_parameters function_parameters compound_statement
+        |       function_header function_parameters function_results compound_statement SEMICOLON
                 {
 			PreFunctionDeclaration($1, $2, $3)
+                }
+        |       function_header function_parameters declaration_specifiers compound_statement SEMICOLON
+                {
+			PreFunctionDeclaration($1, $2, actions.FunctionResultUnnamed(Program, $3))
                 }
         ;
 
@@ -322,18 +388,14 @@ parameter_declaration:
                 declarator declaration_specifiers
                 {
 			details := Program.CxIrState.CXArgumentDebugMng.CXArgumentDebugGet($2.ArgDetails)
-			details.FileName, details.FileLine = CurrentFile, lineNo
+			// The parameter is at its name.
+			details.FileName, details.FileLine, details.FileColumn = CurrentFile, $<line>1, $<column>1
 			$2.Name = $1.Name
 			$2.Package = $1.Package
 			Program.ReleaseCXArgBuilder($1)
                         
 			$$ = $2
                 }
-                ;
-
-identifier_list:
-                IDENTIFIER
-	|       identifier_list COMMA IDENTIFIER
                 ;
 
 declarator:     direct_declarator
@@ -343,8 +405,6 @@ direct_declarator:
                 IDENTIFIER
                 {
 			if pkg, err := Program.GetCurrentPackage(); err == nil {
-				// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-				// Now a constructor call, site S1404.
 				_, arg := ast.MakeArgument(Program, stringpool.StringGidNil, CurrentFile, lineNo)
 				arg.SetType(types.UNDEFINED)
 				arg.Name = Program.CXProgramNameIntern($1)
@@ -360,7 +420,7 @@ direct_declarator:
 
 id_list:	IDENTIFIER
 		{
-			arg := actions.DeclarationSpecifiersStruct(Program,$1, "", false, CurrentFile, lineNo)
+			arg := actions.DeclarationSpecifiersStruct(Program,$1, "", false, CurrentFile, $<line>1, $<column>1)
 			// OBJMODEL: state.CXArgumentMng (manager storage) or []CXArgumentGid, phase 4 #326.
 			// Now a slice of objects, site S1405.
 			$$ = []*ast.CXArgument{arg}
@@ -374,7 +434,7 @@ id_list:	IDENTIFIER
 		}
 	|	id_list COMMA IDENTIFIER
 		{
-			arg := actions.DeclarationSpecifiersStruct(Program,$3, "", false, CurrentFile, lineNo)
+			arg := actions.DeclarationSpecifiersStruct(Program,$3, "", false, CurrentFile, $<line>3, $<column>3)
 			$$ = append($1, arg)
 		}
 	|	id_list COMMA type_specifier
@@ -396,10 +456,16 @@ types_list:
 	;
 
 declaration_specifiers:
+                element_specifiers
+        |       indexing_literal array_element
+                {
+			$$ = actions.DeclarationSpecifiers($2, types.Cast_sint_to_sptr($1), constants.DECL_ARRAY)
+                }
+                ;
+
+element_specifiers:
 		FUNC types_list types_list
 		{
-			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
-			// Now a constructor call, site S1407.
 			_, arg := ast.MakeArgument(Program, stringpool.StringGidNil, actions.CurrentFile, actions.LineNo)
 			arg.SetType(types.FUNC)
 			// OBJMODEL: state.CXArgumentMng.CXArgumentAlloc(), phase 4 #326.
@@ -414,10 +480,6 @@ declaration_specifiers:
                 {
 			$$ = actions.DeclarationSpecifiers($2, []types.Pointer{0}, constants.DECL_POINTER)
                 }
-        // |       indexing_literal declaration_specifiers
-        //         {
-	// 		$$ = actions.DeclarationSpecifiers($2, $1, constants.DECL_ARRAY)
-        //         }
         |       LBRACK RBRACK declaration_specifiers
                 {
 			$$ = actions.DeclarationSpecifiers($3, []types.Pointer{0}, constants.DECL_SLICE)
@@ -428,30 +490,45 @@ declaration_specifiers:
                 }
         |       IDENTIFIER
                 {
-			$$ = actions.DeclarationSpecifiersStruct(Program,$1, "", false, CurrentFile, lineNo)
-                }
-        |       indexing_literal type_specifier
-                {
-			basic := actions.DeclarationSpecifiersBasic(Program, types.Code($2))
-			$$ = actions.DeclarationSpecifiers(basic, types.Cast_sint_to_sptr($1), constants.DECL_ARRAY)
-                }
-        |       indexing_literal IDENTIFIER
-                {
-			strct := actions.DeclarationSpecifiersStruct(Program,$2, "", false, CurrentFile, lineNo)
-			$$ = actions.DeclarationSpecifiers(strct, types.Cast_sint_to_sptr($1), constants.DECL_ARRAY)
+			$$ = actions.DeclarationSpecifiersStruct(Program,$1, "", false, CurrentFile, $<line>1, $<column>1)
                 }
         |       IDENTIFIER PERIOD IDENTIFIER
                 {
-			$$ = actions.DeclarationSpecifiersStruct(Program,$3, $1, true, CurrentFile, lineNo)
+			$$ = actions.DeclarationSpecifiersStruct(Program,$3, $1, true, CurrentFile, $<line>1, $<column>1)
                 }
 	|       type_specifier PERIOD IDENTIFIER
 		{
-			$$ = actions.DeclarationSpecifiersStruct(Program,$3, types.Code($1).Name(), true, CurrentFile, lineNo)
+			$$ = actions.DeclarationSpecifiersStruct(Program,$3, types.Code($1).Name(), true, CurrentFile, $<line>1, $<column>1)
 		}
-		/* type_specifier declaration_specifiers */
-	/* |       type_specifier */
-	/* |       type_qualifier declaration_specifiers */
-	/* |       type_qualifier */
+                ;
+
+// array_element is what an array may hold: a basic or struct type, a struct
+// of another package, or a pointer to one of them.
+array_element:
+                type_specifier
+                {
+			$$ = actions.DeclarationSpecifiersBasic(Program, types.Code($1))
+                }
+        |       IDENTIFIER
+                {
+			$$ = actions.DeclarationSpecifiersStruct(Program,$1, "", false, CurrentFile, $<line>1, $<column>1)
+                }
+        |       IDENTIFIER PERIOD IDENTIFIER
+                {
+			$$ = actions.DeclarationSpecifiersStruct(Program,$3, $1, true, CurrentFile, $<line>1, $<column>1)
+                }
+        |       type_specifier PERIOD IDENTIFIER
+                {
+			$$ = actions.DeclarationSpecifiersStruct(Program,$3, types.Code($1).Name(), true, CurrentFile, $<line>1, $<column>1)
+                }
+        |       MUL_OP array_element
+                {
+			$$ = actions.DeclarationSpecifiers($2, []types.Pointer{0}, constants.DECL_POINTER)
+                }
+        |       LBRACK RBRACK declaration_specifiers
+                {
+			$$ = actions.DeclarationSpecifiers($3, []types.Pointer{0}, constants.DECL_SLICE)
+                }
                 ;
 
 type_specifier:
@@ -496,14 +573,20 @@ type_specifier:
 
 struct_literal_fields:
                 // empty
-        |       IDENTIFIER COLON constant_expression
-        |       struct_literal_fields COMMA IDENTIFIER COLON constant_expression
+        |       IDENTIFIER COLON conditional_expression
+        |       struct_literal_fields COMMA IDENTIFIER COLON conditional_expression
                 ;
 
-array_literal_expression_list:
+literal_element_list:
+		literal_element
+	|       literal_element_list COMMA literal_element
+                ;
+
+// An elided element, {1, 2} or {x: 1}, takes the element type of its literal.
+literal_element:
 		assignment_expression
-        |       LBRACE array_literal_expression_list RBRACE
-	|       array_literal_expression_list COMMA assignment_expression
+        |       LBRACE literal_element_list RBRACE
+        |       LBRACE struct_literal_fields RBRACE
                 ;
 
 indexing_literal:
@@ -530,18 +613,17 @@ indexing_slice_literal:
 
 // expressions
 array_literal_expression:
-                indexing_literal IDENTIFIER LBRACE array_literal_expression_list RBRACE
+                indexing_literal IDENTIFIER LBRACE literal_element_list RBRACE
         |       indexing_literal IDENTIFIER LBRACE RBRACE
-        |       indexing_literal type_specifier LBRACE array_literal_expression_list RBRACE
+        |       indexing_literal type_specifier LBRACE literal_element_list RBRACE
         |       indexing_literal type_specifier LBRACE RBRACE
         ;
 
 slice_literal_expression:
-                LBRACK RBRACK IDENTIFIER LBRACE argument_expression_list RBRACE
-        |       LBRACK RBRACK IDENTIFIER LBRACE RBRACE
-        |       LBRACK RBRACK type_specifier LBRACE argument_expression_list RBRACE
-        |       LBRACK RBRACK type_specifier LBRACE RBRACE
-        |       LBRACK RBRACK slice_literal_expression
+                indexing_slice_literal IDENTIFIER LBRACE literal_element_list RBRACE
+        |       indexing_slice_literal IDENTIFIER LBRACE RBRACE
+        |       indexing_slice_literal type_specifier LBRACE literal_element_list RBRACE
+        |       indexing_slice_literal type_specifier LBRACE RBRACE
                 ;
 
 
@@ -583,16 +665,6 @@ infer_clauses:
         /* |       infer_targets */
                 ;
 
-int_value:
-		INT_LITERAL
-		{
-			$$ = $1
-		}
-        |       SUB_OP INT_LITERAL
-		{
-			$$ = -$2
-		}
-
 primary_expression:
                 IDENTIFIER
         /* |       IDENTIFIER LBRACE struct_literal_fields RBRACE */
@@ -618,17 +690,24 @@ after_period:   type_specifier
         |       IDENTIFIER
         ;
 
+// A struct literal is an operand, as in Go. An if or for header uses the _nc
+// rules, which hold no bare struct literal (skycoin-cx#21).
 postfix_expression:
                 primary_expression
-	|       postfix_expression LBRACK expression RBRACK
+        |       struct_literal_value
+	|       postfix_expression LBRACK assignment_expression RBRACK
         |       type_specifier PERIOD after_period
 	|       postfix_expression LPAREN RPAREN
 	|       postfix_expression LPAREN argument_expression_list RPAREN
 	|       postfix_expression INC_OP
         |       postfix_expression DEC_OP
         |       postfix_expression PERIOD IDENTIFIER
-        /* |       postfix_expression PERIOD IDENTIFIER LBRACE struct_literal_fields RBRACE */
                 ;
+
+struct_literal_value:
+		IDENTIFIER LBRACE struct_literal_fields RBRACE
+        |       postfix_expression PERIOD IDENTIFIER LBRACE struct_literal_fields RBRACE
+        ;
 
 argument_expression_list:
                 assignment_expression
@@ -639,7 +718,7 @@ unary_expression:
                 postfix_expression
 	|       INC_OP unary_expression
 	|       DEC_OP unary_expression
-	|       unary_operator unary_expression // check
+	|       unary_operator unary_expression
                 ;
 
 unary_operator:
@@ -650,53 +729,39 @@ unary_operator:
 	|       NEG_OP
                 ;
 
+// Binary operator precedence follows https://go.dev/ref/spec#Operator_precedence
 multiplicative_expression:
                 unary_expression
 	|       multiplicative_expression MUL_OP unary_expression
 	|       multiplicative_expression DIV_OP unary_expression
 	|       multiplicative_expression MOD_OP unary_expression
+	|       multiplicative_expression LEFT_OP unary_expression
+	|       multiplicative_expression RIGHT_OP unary_expression
+	|       multiplicative_expression REF_OP unary_expression
+	|       multiplicative_expression BITCLEAR_OP unary_expression
                 ;
 
 additive_expression:
                 multiplicative_expression
 	|       additive_expression ADD_OP multiplicative_expression
 	|       additive_expression SUB_OP multiplicative_expression
-                ;
-
-shift_expression:
-                additive_expression
-	|       shift_expression LEFT_OP additive_expression
-	|       shift_expression RIGHT_OP additive_expression
-        |       shift_expression BITCLEAR_OP additive_expression
+	|       additive_expression BITOR_OP multiplicative_expression
+	|       additive_expression BITXOR_OP multiplicative_expression
                 ;
 
 relational_expression:
-                shift_expression
-	|       relational_expression EQ_OP shift_expression
-	|       relational_expression NE_OP shift_expression
-	|       relational_expression LT_OP shift_expression
-	|       relational_expression GT_OP shift_expression
-	|       relational_expression LTEQ_OP shift_expression
-	|       relational_expression GTEQ_OP shift_expression
-                ;
-
-and_expression: relational_expression
-	|       and_expression REF_OP relational_expression
-                ;
-
-exclusive_or_expression:
-                and_expression
-	|       exclusive_or_expression BITXOR_OP and_expression
-                ;
-
-inclusive_or_expression:
-                exclusive_or_expression
-	|       inclusive_or_expression BITOR_OP exclusive_or_expression
+                additive_expression
+	|       relational_expression EQ_OP additive_expression
+	|       relational_expression NE_OP additive_expression
+	|       relational_expression LT_OP additive_expression
+	|       relational_expression GT_OP additive_expression
+	|       relational_expression LTEQ_OP additive_expression
+	|       relational_expression GTEQ_OP additive_expression
                 ;
 
 logical_and_expression:
-                inclusive_or_expression
-	|       logical_and_expression AND_OP inclusive_or_expression
+                relational_expression
+	|       logical_and_expression AND_OP relational_expression
                 ;
 
 logical_or_expression:
@@ -709,16 +774,72 @@ conditional_expression:
 	|       logical_or_expression '?' expression COLON conditional_expression
                 ;
 
-struct_literal_expression:
-                conditional_expression
-	|       IDENTIFIER LBRACE struct_literal_fields RBRACE
-	|       unary_operator IDENTIFIER LBRACE struct_literal_fields RBRACE
-        |       postfix_expression PERIOD IDENTIFIER LBRACE struct_literal_fields RBRACE
-        ;
+// The expression rules of an if or for header, which hold no bare struct
+// literal. One in parentheses, brackets or braces is a full expression.
+postfix_nc:
+                primary_expression
+	|       postfix_nc LBRACK assignment_expression RBRACK
+        |       type_specifier PERIOD after_period
+	|       postfix_nc LPAREN RPAREN
+	|       postfix_nc LPAREN argument_expression_list RPAREN
+	|       postfix_nc INC_OP
+        |       postfix_nc DEC_OP
+        |       postfix_nc PERIOD IDENTIFIER
+                ;
+
+unary_nc:
+                postfix_nc
+	|       INC_OP unary_nc
+	|       DEC_OP unary_nc
+	|       unary_operator unary_nc
+                ;
+
+// Binary operator precedence follows https://go.dev/ref/spec#Operator_precedence
+multiplicative_nc:
+                unary_nc
+	|       multiplicative_nc MUL_OP unary_nc
+	|       multiplicative_nc DIV_OP unary_nc
+	|       multiplicative_nc MOD_OP unary_nc
+	|       multiplicative_nc LEFT_OP unary_nc
+	|       multiplicative_nc RIGHT_OP unary_nc
+	|       multiplicative_nc REF_OP unary_nc
+	|       multiplicative_nc BITCLEAR_OP unary_nc
+                ;
+
+additive_nc:
+                multiplicative_nc
+	|       additive_nc ADD_OP multiplicative_nc
+	|       additive_nc SUB_OP multiplicative_nc
+	|       additive_nc BITOR_OP multiplicative_nc
+	|       additive_nc BITXOR_OP multiplicative_nc
+                ;
+
+relational_nc:
+                additive_nc
+	|       relational_nc EQ_OP additive_nc
+	|       relational_nc NE_OP additive_nc
+	|       relational_nc LT_OP additive_nc
+	|       relational_nc GT_OP additive_nc
+	|       relational_nc LTEQ_OP additive_nc
+	|       relational_nc GTEQ_OP additive_nc
+                ;
+
+logical_and_nc:
+                relational_nc
+	|       logical_and_nc AND_OP relational_nc
+                ;
+
+logical_or_nc:
+                logical_and_nc
+	|       logical_or_nc OR_OP logical_and_nc
+                ;
+
+conditional_nc:
+                logical_or_nc
+                ;
 
 assignment_expression:
-                /* conditional_expression */
-                struct_literal_expression
+                conditional_expression
 	|       unary_expression assignment_operator assignment_expression
                 ;
 
@@ -736,7 +857,6 @@ assignment_operator:
 	|       XOR_ASSIGN
 	|       OR_ASSIGN
                 ;
-
 expression:     assignment_expression
 	|       expression COMMA assignment_expression
                 ;
@@ -746,20 +866,32 @@ constant_expression:
                 ;
 
 declaration:
-                VAR declarator declaration_specifiers SEMICOLON
-                {
-			Program.ReleaseCXArgBuilder($2)
-			Program.ReleaseCXArgBuilder($3)
-                }
-        |       VAR declarator declaration_specifiers ASSIGN initializer SEMICOLON
-                {
-			Program.ReleaseCXArgBuilder($2)
-			Program.ReleaseCXArgBuilder($3)
-                }
+                VAR local_var_spec
+        |       VAR LPAREN local_var_specs RPAREN
+        |       VAR LPAREN RPAREN
                 ;
 
-initializer:
-                assignment_expression
+local_var_specs:
+                local_var_spec
+        |       local_var_specs SEMICOLON local_var_spec
+        |       local_var_specs SEMICOLON
+                ;
+
+local_var_spec:
+                var_names declaration_specifiers
+                {
+			varNamesRelease($1)
+			Program.ReleaseCXArgBuilder($2)
+                }
+        |       var_names declaration_specifiers ASSIGN var_values
+                {
+			varNamesRelease($1)
+			Program.ReleaseCXArgBuilder($2)
+                }
+        |       var_names ASSIGN var_values
+                {
+			varNamesRelease($1)
+                }
                 ;
 
 // statements
@@ -778,37 +910,35 @@ labeled_statement:
                 ;
 
 compound_statement:
-                LBRACE RBRACE SEMICOLON
-	|       LBRACE block_item_list RBRACE SEMICOLON
+                LBRACE block_item_list RBRACE
                 ;
 
+// Statements are separated by semicolons and a statement may be empty, as in
+// Go, so the semicolon before a closing brace may be omitted
+// (https://go.dev/ref/spec#Semicolons).
 block_item_list:
                 block_item
-	|       block_item_list block_item
+	|       block_item_list SEMICOLON block_item
                 ;
 
-block_item:     declaration
+block_item:
+        |       declaration
         |       statement
                 ;
 
 expression_statement:
-                SEMICOLON
-	|       expression SEMICOLON
+                expression
                 ;
 
 selection_statement:
-                IF conditional_expression LBRACE block_item_list RBRACE elseif_list else_statement SEMICOLON
-        |       IF conditional_expression LBRACE block_item_list RBRACE else_statement SEMICOLON
-        |       IF conditional_expression LBRACE RBRACE else_statement SEMICOLON //
-        |       IF conditional_expression LBRACE block_item_list RBRACE elseif_list SEMICOLON
-        |       IF conditional_expression LBRACE RBRACE elseif_list SEMICOLON
-        |       IF conditional_expression LBRACE RBRACE elseif_list else_statement SEMICOLON
-        |       IF conditional_expression compound_statement
+                IF conditional_nc compound_statement elseif_list else_statement
+        |       IF conditional_nc compound_statement else_statement
+        |       IF conditional_nc compound_statement elseif_list
+        |       IF conditional_nc compound_statement
 	|       SWITCH LPAREN conditional_expression RPAREN statement
                 ;
 
-elseif:         ELSE IF conditional_expression LBRACE block_item_list RBRACE
-        |       ELSE IF conditional_expression LBRACE RBRACE
+elseif:         ELSE IF conditional_nc compound_statement
         ;
 
 elseif_list:
@@ -817,23 +947,53 @@ elseif_list:
         ;
 
 else_statement:
-                ELSE LBRACE block_item_list RBRACE
-	|      	ELSE LBRACE RBRACE
+                ELSE compound_statement
         ;
 
 iteration_statement:
-                FOR expression compound_statement
-        |       FOR expression_statement expression_statement compound_statement
-        |       FOR expression_statement expression_statement expression compound_statement
-        |       FOR declaration expression_statement compound_statement
-        |       FOR declaration expression_statement expression compound_statement
+                FOR conditional_nc compound_statement
+        |       FOR for_clause_statement for_condition_statement compound_statement
+        |       FOR for_clause_statement for_condition_statement for_clause_expression compound_statement
+        |       FOR declaration SEMICOLON for_condition_statement compound_statement
+        |       FOR declaration SEMICOLON for_condition_statement for_clause_expression compound_statement
                 ;
 
-jump_statement: GOTO IDENTIFIER SEMICOLON
-	|       CONTINUE SEMICOLON
-	|       BREAK SEMICOLON
-	|       RETURN SEMICOLON
-	|       RETURN expression SEMICOLON
+// A for header holds no bare struct literal outside its init values
+// (skycoin-cx#21).
+for_clause_assignment:
+                conditional_nc
+	|       unary_nc assignment_operator for_clause_assignment
                 ;
 
+for_clause_expression:
+                for_clause_assignment
+	|       for_clause_expression COMMA for_clause_assignment
+                ;
+
+for_init_assignment:
+                conditional_nc
+	|       unary_nc assignment_operator assignment_expression
+                ;
+
+for_init_expression:
+                for_init_assignment
+	|       for_init_expression COMMA assignment_expression
+                ;
+
+for_clause_statement:
+                SEMICOLON
+	|       for_init_expression SEMICOLON
+                ;
+
+for_condition_statement:
+                SEMICOLON
+	|       for_clause_expression SEMICOLON
+                ;
+
+jump_statement: GOTO IDENTIFIER
+	|       CONTINUE
+	|       BREAK
+	|       RETURN
+	|       RETURN expression
+                ;
 %%

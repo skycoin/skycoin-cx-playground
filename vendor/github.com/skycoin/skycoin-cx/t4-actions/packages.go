@@ -2,8 +2,9 @@ package actions
 
 import (
 	"fmt"
+	"strings"
 
-	cxpackages "github.com/skycoin/skycoin-cx/t0-packages" // thin: only CheckImport, IsDefaultPackage; no depth gain
+	cxpackages "github.com/skycoin/skycoin-cx/t0-packages" // thin: only CheckImport, GuiPackage, IsDefaultPackage; no depth gain
 	"github.com/skycoin/skycoin-cx/t3-ast"
 )
 
@@ -49,6 +50,10 @@ func DeclareImport(prgrm *ast.CXProgram, impName string, currentFile ast.SourceF
 
 	if err := cxpackages.CheckImport(impName); err != nil {
 		prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodeMessage, currentFile, lineNo, ast.CompileErrorOperands{prgrm.CXProgramCompileErrorText(err.Error())})
+		return
+	}
+	if name, found := strings.CutPrefix(impName, cxpackages.SysPrefix); found && cxpackages.GuiPackage(name) && !cxpackages.GuiBuild {
+		prgrm.CXProgramCompileErrorAdd(ast.CompileErrorCodeImportGuiBuildMissing, currentFile, lineNo, ast.CompileErrorOperands{prgrm.CXProgramCompileErrorText(impName)})
 		return
 	}
 

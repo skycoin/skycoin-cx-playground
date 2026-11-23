@@ -40,6 +40,11 @@ type CxIrState struct {
 	CXTypeSignature_ArrayMng  CXTypeSignature_ArrayMng
 	CXTypeSignature_StructMng CXTypeSignature_StructMng
 	CXCallMng                 CXCallMng
+	// CxIrStateGlobalsDeferred holds the globals whose type pass one cannot
+	// read, until the inference pass types them.
+	CxIrStateGlobalsDeferred []GlobalDeferred
+	// CxIrStateGlobalInitializers holds the run of SysInitExprs of each global.
+	CxIrStateGlobalInitializers []GlobalInitializer
 }
 
 // CxIrStateManagerLen is one manager's name and Len, for the teardown test.

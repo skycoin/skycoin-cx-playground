@@ -18,6 +18,9 @@ func (machine *Machine) loop() Stop {
 	sp := machine.MachineStackPointer
 	code := machine.MachineImage.ImageFuncs[machine.MachineFunction].FuncCode
 	for {
+		if operationCountEnabled {
+			OperationCount++
+		}
 		in := &code[pc]
 		pc++
 		mode := uint32(in.InstrMode)

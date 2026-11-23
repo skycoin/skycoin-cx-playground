@@ -50,7 +50,3 @@ var ConstCxArg_STR = Param(types.STR)
 // ConstCxArg_UND_TYPE Default und parameter
 // VIOLATION: state outside State. Owner: t3-ast; moves to CXArgumentMng in phase 1.
 var ConstCxArg_UND_TYPE = Param(types.UNDEFINED)
-
-// ConstCxArg_Affordance Default aff parameter
-// VIOLATION: state outside State. Owner: t3-ast; moves to CXArgumentMng in phase 1.
-var ConstCxArg_Affordance = Param(types.AFF)
