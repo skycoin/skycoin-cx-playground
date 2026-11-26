@@ -1,0 +1,4 @@
+exit live 0
+exit replay 0
+file-equals live.stdout expected/stdout.txt
+file-equals replay.stdout expected/stdout.txt

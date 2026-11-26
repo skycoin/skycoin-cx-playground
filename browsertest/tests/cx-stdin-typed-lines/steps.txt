@@ -1,0 +1,23 @@
+# Runs a CX program that reads three lines with read(), with "run with
+# input", and types each line into the input box with one key event per
+# character and ENTER. The output grid holds the echoed lines and the
+# program's answers in order.
+open /
+wait-text #status Ready.
+click #code
+key ctrl+a
+type-file echo.cx
+click #runinput
+wait-eval document.getElementById("input").disabled === false
+click #input
+type hello cx
+key Enter
+wait-text #output line 1: hello cx
+type 2 + 3
+key Enter
+wait-text #output line 2: 2 + 3
+type last line
+key Enter
+wait-text #status Exit status 0
+grid #output output
+screenshot after

@@ -1,0 +1,3 @@
+file-equals output.grid.txt expected/output.grid.txt
+contains selected.grid.txt conversions.cx
+png after

@@ -1,0 +1,14 @@
+package main
+
+import "sys/string"
+
+func main() {
+	var line str
+	var count i32
+	for count < 3 {
+		line = read()
+		count++
+		string.PrintLine(string.Concatenation("line ", string.Concatenation(sprintf("%d", count), string.Concatenation(": ", line))))
+	}
+	string.PrintLine("done")
+}

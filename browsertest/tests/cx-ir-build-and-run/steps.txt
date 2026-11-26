@@ -1,0 +1,13 @@
+# The CX IR form: cx build serializes the program onto the end of a file,
+# and cxcorefile runs it with no parser. The IR is built in the browser by
+# the wasm cx, and also on the host by the native cx, and both run in the
+# browser.
+open /
+wait-text #status Ready.
+files fib.cx /home/cx/ir
+files core.stub /home/cx/ir
+spawn build /home/cx/ir cx build fib.cx --core core.stub -o fib.cxir
+spawn run /home/cx/ir cxcorefile fib.cxir
+host native-build . $CX build $test/fib.cx -o fib-native
+files $results/fib-native /home/cx/ir
+spawn run-native /home/cx/ir cxcorefile fib-native

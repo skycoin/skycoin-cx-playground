@@ -1,0 +1,68 @@
+// A TCP client and server in one program on loopback, through the batched
+// net library. Run with --enable=net, see skycoin-cx#508.
+
+package main
+
+import "sys/net"
+
+var buffer [64]ui8
+
+func main() { global buffer
+	var listener i32 = net.TCPListen("127.0.0.1", 0)
+	var client i32
+	var server i32
+	var port i32
+	var done bool
+	var count i32
+	var handle i32
+	var trigger i32
+	var message i32
+	var detail i32
+	var length i32
+	var queued i32
+	var i i32
+	var updates i32
+	for done == false && updates < 500 {
+		count = net.Update(20)
+		updates++
+		for i = 0; i < count; i++ {
+			handle, trigger, message, detail = net.ReadyNext()
+			if trigger == net.TriggerListening {
+				port = detail
+				client = net.TCPDial("127.0.0.1", port)
+			}
+			if trigger == net.TriggerAccepted {
+				server = detail
+				printf("accepted\n")
+			}
+			if trigger == net.TriggerConnected {
+				printf("connected\n")
+				buffer[0] = 104UB
+				buffer[1] = 105UB
+				queued = net.Write(client, buffer, 2)
+				i32.print(queued)
+			}
+			if trigger == net.TriggerData {
+				length = net.Read(handle, message, buffer, 0)
+				if handle == server {
+					printf("server read %d bytes, first %d\n", length, ui8.i32(buffer[0]))
+					buffer[0] = 111UB
+					buffer[1] = 107UB
+					buffer[2] = 33UB
+					queued = net.Write(server, buffer, 3)
+					test(net.Close(server), true, "close the server side")
+				}
+				if handle == client {
+					printf("client read %d bytes, last %d\n", length, ui8.i32(buffer[2]))
+				}
+			}
+			if trigger == net.TriggerClosed {
+				printf("closed\n")
+				done = true
+			}
+		}
+	}
+	test(net.Close(client), true, "close the client")
+	test(net.Close(listener), true, "close the listener")
+	test(net.Close(listener), false, "close it again")
+}

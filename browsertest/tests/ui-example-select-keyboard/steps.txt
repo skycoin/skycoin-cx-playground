@@ -1,0 +1,14 @@
+# Picks the first example with the keyboard: a click on the page, TAB to
+# the example list and ARROWDOWN twice, which loads conversions.cx into the
+# editor. Then a click on run.
+open /
+wait-text #status Ready.
+wait-eval document.getElementById("list").options.length > 1
+click pre
+key Tab ArrowDown ArrowDown
+wait-eval document.getElementById("code").value.includes("Kilo")
+click #run
+wait-text #status Exit status 0
+grid #output output
+grid #list selected
+screenshot after

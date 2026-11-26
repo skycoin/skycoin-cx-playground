@@ -1,0 +1,14 @@
+# Types a CX program into the editor with one key event per character,
+# clicks run, and saves the output and the editor as text grids and the
+# page before and after as images.
+open /
+wait-text #status Ready.
+screenshot before
+click #code
+key ctrl+a
+type-file fib.cx
+click #run
+wait-text #status Exit status 0
+grid #output output
+grid #code editor
+screenshot after

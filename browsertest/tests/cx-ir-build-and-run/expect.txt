@@ -1,0 +1,6 @@
+exit build 0
+exit run 0
+exit native-build 0
+exit run-native 0
+file-equals run.stdout expected/stdout.txt
+file-equals run-native.stdout expected/stdout.txt

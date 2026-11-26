@@ -1,0 +1,9 @@
+# The tcp client and server of skycoin-cx tests/test-net-tcp.cx in one
+# program on loopback, run live on the wasm build of cx, where Go's js/wasm
+# network is in the process, and again from the replay record.
+open /
+wait-text #status Ready.
+files test-net-tcp.cx /home/cx/net
+files test-net-tcp.netreplay /home/cx/net
+spawn live /home/cx/net cx --enable=net test-net-tcp.cx
+spawn replay /home/cx/net cx --enable=net --net-replay=test-net-tcp.netreplay test-net-tcp.cx

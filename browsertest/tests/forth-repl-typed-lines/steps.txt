@@ -1,0 +1,22 @@
+# Types lines into the cx-forth REPL page with one key event per character
+# and ENTER: arithmetic, a colon definition, a ternary word and the CX IR
+# example fib, which the host cxforth also runs, then ARROWUP to take the
+# last line from the history and run it again.
+open /forth/
+wait-text #log examples:
+screenshot before
+click #line
+type 2 3 + .
+key Enter
+type : SQ DUP * ; 9 SQ .
+key Enter
+type TRUE NULL AND .
+key Enter
+type CX-RUN fib
+key Enter
+wait-text #log 377
+key ArrowUp Enter
+wait-eval document.getElementById("log").textContent.split("> CX-RUN fib").length === 3
+grid #log log
+screenshot after
+host forth-native . cd $test/../.. && go tool cxforth -cx fib

@@ -1,0 +1,13 @@
+# CX net replay record, see docs/Networking.md.
+[format] version
+1
+
+[updates] kind fields
+u 1 1
+e 1 4 33299 - -
+u 2 1
+e 2 3 0 - -
+u 3 1
+e 1 1 4 127.0.0.1:51061 "p\x00\x00\x00"
+u 4 2
+e 2 1 1 127.0.0.1:33299 "q"

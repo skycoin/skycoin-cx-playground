@@ -1,0 +1,4 @@
+exit replay 0
+file-equals replay.stdout $microagents/codingbench/runs/scripted-stub/mimiclaw/move-function-to-new-file/output.txt
+exit check 0
+contains check.stdout solved

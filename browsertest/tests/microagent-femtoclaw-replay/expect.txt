@@ -1,0 +1,4 @@
+exit first 0
+exit second 0
+file-equals first.stdout $microagents/femtoclaw/tests/replay-determinism/expected-output.txt
+file-equals second.stdout $microagents/femtoclaw/tests/replay-determinism/expected-output.txt

@@ -1,0 +1,54 @@
+// A UDP client and server in one program on loopback, through the batched
+// net library. Run with --enable=net, see skycoin-cx#508.
+
+package main
+
+import "sys/net"
+
+func main() {
+	var datagram [32]ui8
+	var server i32 = net.UDPListen("127.0.0.1", 0)
+	var client i32
+	var count i32
+	var handle i32
+	var trigger i32
+	var message i32
+	var detail i32
+	var length i32
+	var peer i32
+	var i i32
+	var updates i32
+	var done bool
+	for done == false && updates < 500 {
+		count = net.Update(20)
+		updates++
+		for i = 0; i < count; i++ {
+			handle, trigger, message, detail = net.ReadyNext()
+			if trigger == net.TriggerListening {
+				client = net.UDPDial("127.0.0.1", detail)
+			}
+			if trigger == net.TriggerConnected {
+				datagram[0] = 112UB
+				i32.print(net.Write(client, datagram, 4))
+			}
+			if trigger == net.TriggerData {
+				if handle == server {
+					length, peer = net.UDPReadFrom(server, message, datagram, 0)
+					printf("server got %d bytes from peer %d, first %d\n", length, peer, ui8.i32(datagram[0]))
+					datagram[0] = 113UB
+					i32.print(net.UDPWriteTo(server, peer, datagram, 1))
+				}
+				if handle == client {
+					length = net.Read(client, message, datagram, 0)
+					printf("client got %d bytes, first %d\n", length, ui8.i32(datagram[0]))
+					done = true
+				}
+			}
+		}
+	}
+	// Peer 1 is the client as the server saw it, peer 2 the server as the
+	// client saw it.
+	test(net.UDPPeerResolve("127.0.0.1", 9), 3, "a new address is the next peer")
+	test(net.Close(client), true, "close the client")
+	test(net.Close(server), true, "close the server")
+}

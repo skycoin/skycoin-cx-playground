@@ -1,0 +1,5 @@
+file-equals output.grid.txt expected/output.grid.txt
+file-equals editor.grid.txt expected/editor.grid.txt
+png before
+png after
+differs before.png after.png

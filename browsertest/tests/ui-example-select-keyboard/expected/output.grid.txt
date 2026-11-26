@@ -1,0 +1,15 @@
+Example 7.89 Mills is (in Yard): 
+13886.399
+Example 7.89 Yards is (in Miles): 
+0.0044829543
+Example 7.89 Foot is (in Yard): 
+2.6299999
+Example 7.89 Yards is (in Foot): 
+23.67
+Example 7.89 Foot is (in Meters): 
+2.4054878
+Example 7.89 Meters is (in Foot): 
+25.8792
+Example 7.89 Kilo meters is (in Meters): 
+7890
+Example 7.89 Meters is (in Kilo meters): 

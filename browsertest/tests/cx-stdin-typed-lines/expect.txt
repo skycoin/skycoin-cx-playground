@@ -1,0 +1,2 @@
+file-equals output.grid.txt expected/output.grid.txt
+png after

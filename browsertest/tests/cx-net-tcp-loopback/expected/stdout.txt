@@ -1,0 +1,6 @@
+accepted
+connected
+2
+server read 2 bytes, first 104
+client read 3 bytes, last 33
+closed

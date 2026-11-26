@@ -1,0 +1,9 @@
+# The udp client and server of skycoin-cx tests/test-net-udp.cx in one
+# program on loopback, run live on the wasm build of cx, where Go's js/wasm
+# network is in the process, and again from the replay record.
+open /
+wait-text #status Ready.
+files test-net-udp.cx /home/cx/net
+files test-net-udp.netreplay /home/cx/net
+spawn live /home/cx/net cx --enable=net test-net-udp.cx
+spawn replay /home/cx/net cx --enable=net --net-replay=test-net-udp.netreplay test-net-udp.cx

@@ -1,0 +1,2 @@
+A file that is not a core. cx build appends the program to it, and
+cxcorefile reads the program from the end of any file.

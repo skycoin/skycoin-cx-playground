@@ -1,0 +1,9 @@
+# Replays the mimiclaw CX port twice from the tape of its replay-determinism
+# test in microagents, on the wasm build of cx in a Worker. Replay needs no
+# model and no network.
+open /
+wait-text #status Ready.
+files $microagents/mimiclaw/port /home/cx/agent/port
+files $microagents/mimiclaw/tests/replay-determinism/tape.txt /home/cx/run
+spawn first /home/cx/run cx --enable=file,net,process /home/cx/agent/port ++mode=replay ++tape=tape.txt
+spawn second /home/cx/run cx --enable=file,net,process /home/cx/agent/port ++mode=replay ++tape=tape.txt

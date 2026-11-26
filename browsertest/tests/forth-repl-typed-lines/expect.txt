@@ -1,0 +1,7 @@
+contains log.grid.txt > 2 3 + .
+contains log.grid.txt 5  ok
+contains log.grid.txt 81  ok
+exit forth-native 0
+contains-file log.grid.txt $results/forth-native.stdout
+png after
+differs before.png after.png

@@ -1,0 +1,13 @@
+# Replays the scripted-stub tape of codingbench task create-fizzbuzz with the femtoclaw
+# CX port in the browser, with ++apply=1, which writes the files the agent
+# wrote. The files come back to the host, and the task's check.sh judges
+# them with the native cx, as codingbench does.
+open /
+wait-text #status Ready.
+eval jsfs.mkdirp("/home/cx/run/spiffs/sessions")
+
+files $microagents/femtoclaw/port /home/cx/agent/port
+files $microagents/codingbench/runs/scripted-stub/femtoclaw/create-fizzbuzz/tape.txt /home/cx/run
+spawn replay /home/cx/run cx --enable=file,net,process /home/cx/agent/port ++mode=replay ++tape=tape.txt ++apply=1
+pull /home/cx/run/spiffs spiffs
+host check spiffs sh $microagents/codingbench/tasks/create-fizzbuzz/check.sh

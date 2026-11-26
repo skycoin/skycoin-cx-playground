@@ -1,0 +1,7 @@
+hello cx
+line 1: hello cx
+2 + 3
+line 2: 2 + 3
+last line
+line 3: last line
+done
