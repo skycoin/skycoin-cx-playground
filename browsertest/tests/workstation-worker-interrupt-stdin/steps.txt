@@ -1,0 +1,23 @@
+# cx runs in a Worker: an endless loop leaves the page working, Ctrl+C in
+# the terminal stops it with status 130, and lines typed into the terminal
+# reach CX read() of a program in a Worker until Ctrl+D ends the input.
+open /desk.html
+wait-eval window.cxdeskReady === true
+files forever.cx /home/user
+eval __cxdeskSubmit("cx forever.cx")
+wait 3000
+eval window.alive = 1
+wait-eval window.alive === 1
+click .xterm-screen
+key ctrl+c
+wait-eval document.body.innerText.includes("$ ") && (__cxdeskSubmit("echo status $?"), true)
+wait-eval document.body.innerText.includes("status 130")
+eval __cxdeskSubmit("cx ~/demo/echo.cx")
+wait 1500
+type typed into a worker
+key Enter
+wait-eval document.body.innerText.includes("1: typed into a worker")
+key ctrl+d
+wait-eval document.body.innerText.includes("1: typed into a worker") && (__cxdeskSubmit("echo done $?"), true)
+wait-eval document.body.innerText.includes("done 0")
+screenshot terminal

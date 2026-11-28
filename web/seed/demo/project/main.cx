@@ -1,0 +1,13 @@
+// A program of two packages in three files. Run the folder:
+//
+//	cx project
+//
+// or name the files: cx project/main.cx project/greeting/*.cx
+package main
+
+import "greeting"
+
+func main() {
+	greeting.Hello("CX")
+	printf("%d people greeted\n", greeting.Count())
+}

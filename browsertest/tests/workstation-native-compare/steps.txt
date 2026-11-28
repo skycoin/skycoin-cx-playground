@@ -1,0 +1,130 @@
+# Programs of skycoin-cx tests/, from the skycoin-cx that built cx.wasm,
+# run with cx in a shell of the workstation and with the native cx on the
+# host. Output, errors and exit status are the same. The list is every
+# ninth program that ends the same way twice natively without the network,
+# files, time or input; all 548 such programs matched when it was made.
+open /desk.html
+wait-eval window.cxdeskReady === true
+files $cxtests /home/user/cxtests
+shell w1 /home/user/cxtests cx cassign.cx
+host n1 . cd $cxtests && $CX cassign.cx
+shell w2 /home/user/cxtests cx issue-157.cx
+host n2 . cd $cxtests && $CX issue-157.cx
+shell w3 /home/user/cxtests cx issue-221.cx
+host n3 . cd $cxtests && $CX issue-221.cx
+shell w4 /home/user/cxtests cx issue-231.cx
+host n4 . cd $cxtests && $CX issue-231.cx
+shell w5 /home/user/cxtests cx issue-239.cx
+host n5 . cd $cxtests && $CX issue-239.cx
+shell w6 /home/user/cxtests cx issue-245.cx
+host n6 . cd $cxtests && $CX issue-245.cx
+shell w7 /home/user/cxtests cx issue-251.cx
+host n7 . cd $cxtests && $CX issue-251.cx
+shell w8 /home/user/cxtests cx issue-25.cx
+host n8 . cd $cxtests && $CX issue-25.cx
+shell w9 /home/user/cxtests cx issue-269.cx
+host n9 . cd $cxtests && $CX issue-269.cx
+shell w10 /home/user/cxtests cx issue-277.cx
+host n10 . cd $cxtests && $CX issue-277.cx
+shell w11 /home/user/cxtests cx issue-284.cx
+host n11 . cd $cxtests && $CX issue-284.cx
+shell w12 /home/user/cxtests cx issue-28-f64-issue.cx
+host n12 . cd $cxtests && $CX issue-28-f64-issue.cx
+shell w13 /home/user/cxtests cx issue-28-ui16-issue.cx
+host n13 . cd $cxtests && $CX issue-28-ui16-issue.cx
+shell w14 /home/user/cxtests cx issue-292.cx
+host n14 . cd $cxtests && $CX issue-292.cx
+shell w15 /home/user/cxtests cx issue-2.cx
+host n15 . cd $cxtests && $CX issue-2.cx
+shell w16 /home/user/cxtests cx issue-308.cx
+host n16 . cd $cxtests && $CX issue-308.cx
+shell w17 /home/user/cxtests cx issue-450b.cx
+host n17 . cd $cxtests && $CX issue-450b.cx
+shell w18 /home/user/cxtests cx issue-521.cx
+host n18 . cd $cxtests && $CX issue-521.cx
+shell w19 /home/user/cxtests cx issue-59-a.cx
+host n19 . cd $cxtests && $CX issue-59-a.cx
+shell w20 /home/user/cxtests cx issue-65.cx
+host n20 . cd $cxtests && $CX issue-65.cx
+shell w21 /home/user/cxtests cx multi-return-from-function-new-varaible.cx
+host n21 . cd $cxtests && $CX multi-return-from-function-new-varaible.cx
+shell w22 /home/user/cxtests cx test-aff-declarations.cx
+host n22 . cd $cxtests && $CX test-aff-declarations.cx
+shell w23 /home/user/cxtests cx test-append-slice-pointer-deref.cx
+host n23 . cd $cxtests && $CX test-append-slice-pointer-deref.cx
+shell w24 /home/user/cxtests cx test-array-bounds-global-100-negative.cx
+host n24 . cd $cxtests && $CX test-array-bounds-global-100-negative.cx
+shell w25 /home/user/cxtests cx test-array-index-negative.cx
+host n25 . cd $cxtests && $CX test-array-index-negative.cx
+shell w26 /home/user/cxtests cx test-array-too-large.cx
+host n26 . cd $cxtests && $CX test-array-too-large.cx
+shell w27 /home/user/cxtests cx test-cipher-hash-state-vm.cx
+host n27 . cd $cxtests && $CX test-cipher-hash-state-vm.cx
+shell w28 /home/user/cxtests cx test-cxir-image-build.cx
+host n28 . cd $cxtests && $CX test-cxir-image-build.cx
+shell w29 /home/user/cxtests cx test-error-column.cx
+host n29 . cd $cxtests && $CX test-error-column.cx
+shell w30 /home/user/cxtests cx test-error-method-receivers.cx
+host n30 . cd $cxtests && $CX test-error-method-receivers.cx
+shell w31 /home/user/cxtests cx test-error-package-clause-missing.cx
+host n31 . cd $cxtests && $CX test-error-package-clause-missing.cx
+shell w32 /home/user/cxtests cx test-error-redeclared-kinds.cx
+host n32 . cd $cxtests && $CX test-error-redeclared-kinds.cx
+shell w33 /home/user/cxtests cx test-error-syntax-body.cx
+host n33 . cd $cxtests && $CX test-error-syntax-body.cx
+shell w34 /home/user/cxtests cx test-function.cx
+host n34 . cd $cxtests && $CX test-function.cx
+shell w35 /home/user/cxtests cx test-gc-array-field.cx
+host n35 . cd $cxtests && $CX test-gc-array-field.cx
+shell w36 /home/user/cxtests cx test-global-declaration-errors.cx
+host n36 . cd $cxtests && $CX test-global-declaration-errors.cx
+shell w37 /home/user/cxtests cx test-global-multiple-results-errors.cx
+host n37 . cd $cxtests && $CX test-global-multiple-results-errors.cx
+shell w38 /home/user/cxtests cx test-heap-cap-near.cx
+host n38 . cd $cxtests && $CX test-heap-cap-near.cx
+shell w39 /home/user/cxtests cx test-import-global-array-number.cx
+host n39 . cd $cxtests && $CX test-import-global-array-number.cx
+shell w40 /home/user/cxtests cx test-import-twice-a.cx
+host n40 . cd $cxtests && $CX test-import-twice-a.cx
+shell w41 /home/user/cxtests cx test-literal-compound.cx
+host n41 . cd $cxtests && $CX test-literal-compound.cx
+shell w42 /home/user/cxtests cx test-loop-for-true.cx
+host n42 . cd $cxtests && $CX test-loop-for-true.cx
+shell w43 /home/user/cxtests cx test-method-pointer-addressable.cx
+host n43 . cd $cxtests && $CX test-method-pointer-addressable.cx
+shell w44 /home/user/cxtests cx test-operator-argument-types.cx
+host n44 . cd $cxtests && $CX test-operator-argument-types.cx
+shell w45 /home/user/cxtests cx test-pointer-array-2d.cx
+host n45 . cd $cxtests && $CX test-pointer-array-2d.cx
+shell w46 /home/user/cxtests cx test-printf-escapes.cx
+host n46 . cd $cxtests && $CX test-printf-escapes.cx
+shell w47 /home/user/cxtests cx test-regexp-find-failed-compile.cx
+host n47 . cd $cxtests && $CX test-regexp-find-failed-compile.cx
+shell w48 /home/user/cxtests cx test-runtime-error-return-line.cx
+host n48 . cd $cxtests && $CX test-runtime-error-return-line.cx
+shell w49 /home/user/cxtests cx test-serialize.cx
+host n49 . cd $cxtests && $CX test-serialize.cx
+shell w50 /home/user/cxtests cx test-shortcircuit-slice.cx
+host n50 . cd $cxtests && $CX test-shortcircuit-slice.cx
+shell w51 /home/user/cxtests cx test-slice-builtin-element-type.cx
+host n51 . cd $cxtests && $CX test-slice-builtin-element-type.cx
+shell w52 /home/user/cxtests cx test-slice-nested-call.cx
+host n52 . cd $cxtests && $CX test-slice-nested-call.cx
+shell w53 /home/user/cxtests cx test-slices.cx
+host n53 . cd $cxtests && $CX test-slices.cx
+shell w54 /home/user/cxtests cx test-slices-remove-out-of-range-c.cx
+host n54 . cd $cxtests && $CX test-slices-remove-out-of-range-c.cx
+shell w55 /home/user/cxtests cx test-str-functions.cx
+host n55 . cd $cxtests && $CX test-str-functions.cx
+shell w56 /home/user/cxtests cx test-str-substr-out-of-range-d.cx
+host n56 . cd $cxtests && $CX test-str-substr-out-of-range-d.cx
+shell w57 /home/user/cxtests cx test-struct-literal-nested.cx
+host n57 . cd $cxtests && $CX test-struct-literal-nested.cx
+shell w58 /home/user/cxtests cx test-sys-import-unknown.cx
+host n58 . cd $cxtests && $CX test-sys-import-unknown.cx
+shell w59 /home/user/cxtests cx test-ui32.cx
+host n59 . cd $cxtests && $CX test-ui32.cx
+shell w60 /home/user/cxtests cx test-utils.cx
+host n60 . cd $cxtests && $CX test-utils.cx
+shell w61 /home/user/cxtests cx test-vm-print.cx
+host n61 . cd $cxtests && $CX test-vm-print.cx

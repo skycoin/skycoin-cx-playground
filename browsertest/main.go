@@ -30,6 +30,7 @@ type options struct {
 	results     string
 	run         string
 	microagents string
+	cxtests     string
 	cx          string
 	keep        bool
 }
@@ -42,6 +43,7 @@ func main() {
 	flag.StringVar(&o.results, "results", "results", "results go to <results>/<time>/<test>/")
 	flag.StringVar(&o.run, "run", "*", "glob of the test folders to run")
 	flag.StringVar(&o.microagents, "microagents", "", "the microagents folder of skycoin-cx-playground-android, $microagents in steps")
+	flag.StringVar(&o.cxtests, "cxtests", "", "the tests folder of the skycoin-cx that built cx.wasm, $cxtests in steps")
 	flag.StringVar(&o.cx, "cx", envOr("CX", "cx"), "native cx for host steps, $CX in their environment")
 	flag.BoolVar(&o.keep, "keep", false, "keep the browser profile folder")
 	flag.Parse()
@@ -67,7 +69,7 @@ func envOr(name, value string) string {
 // suiteRun serves the site, starts the browser and runs every test folder in
 // its own new tab. It returns the number of failed tests.
 func suiteRun(o options) (int, error) {
-	for _, p := range []*string{&o.site, &o.tests, &o.results, &o.microagents, &o.cx} {
+	for _, p := range []*string{&o.site, &o.tests, &o.results, &o.microagents, &o.cxtests, &o.cx} {
 		// A bare cx is looked up in PATH, every other value is a path.
 		if *p == "" || (p == &o.cx && !strings.Contains(*p, "/")) {
 			continue
@@ -255,7 +257,7 @@ func testRun(o options, b *browserProcess, base, dir, out string) (string, error
 	}
 	r := &stepRunner{
 		ctx: ctx, conn: conn, base: base, dir: dir, out: out, options: o,
-		vars:  map[string]string{"$test": dir, "$results": out, "$microagents": o.microagents},
+		vars:  map[string]string{"$test": dir, "$results": out, "$microagents": o.microagents, "$cxtests": o.cxtests},
 		exits: map[string]int{},
 	}
 	steps, err := lines(filepath.Join(dir, "steps.txt"))

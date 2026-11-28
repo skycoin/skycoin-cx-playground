@@ -1,0 +1,20 @@
+// Reads lines from stdin and prints each with its number. Type some lines
+// and end with Ctrl+D, or pipe them in:
+//
+//	seq 3 | cx echo.cx
+package main
+
+import "sys/string"
+
+func main() {
+	var line str
+	var number i32
+	for true {
+		line = read()
+		if string.ByteLength(line) == 0 {
+			return
+		}
+		number++
+		printf("%d: %s\n", number, line)
+	}
+}

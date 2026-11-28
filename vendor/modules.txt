@@ -1,6 +1,3 @@
-# github.com/0magnet/bottle v0.0.1-0.20261028202309-2b922f28f74e
-## explicit; go 1.24
-github.com/0magnet/bottle
 # github.com/go-gl/gl v0.0.0-20260331235117-4566fea9a276
 ## explicit; go 1.12
 github.com/go-gl/gl/v3.2-compatibility/gl
@@ -58,14 +55,11 @@ github.com/skycoin/skycoin-cx/t1-constants
 github.com/skycoin/skycoin-cx/t1-cx-core-objmodel
 github.com/skycoin/skycoin-cx/t1-netbatch
 github.com/skycoin/skycoin-cx/t1-profiling
-github.com/skycoin/skycoin-cx/t10-cxrepl
-github.com/skycoin/skycoin-cx/t11-cx
 github.com/skycoin/skycoin-cx/t2-cx-core-stringpool
 github.com/skycoin/skycoin-cx/t2-cx-runtime-gc
 github.com/skycoin/skycoin-cx/t2-cx-runtime-ir
 github.com/skycoin/skycoin-cx/t2-globals
 github.com/skycoin/skycoin-cx/t3-ast
-github.com/skycoin/skycoin-cx/t3-cx-compiler-llvm
 github.com/skycoin/skycoin-cx/t3-cx-runtime-vm
 github.com/skycoin/skycoin-cx/t4-actions
 github.com/skycoin/skycoin-cx/t4-cipher

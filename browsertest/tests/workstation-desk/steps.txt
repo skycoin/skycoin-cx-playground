@@ -1,0 +1,43 @@
+# The workstation page: websh runs the wasm cx from /bin over jsfs. A
+# program of several files and packages, a pipe into stdin, exit codes, file
+# IO, an image built and run, and a CX HTTP server on bottle's vnet that a CX
+# client in another process, the page and the netscrape window all reach.
+open /desk.html
+wait-eval window.cxdeskReady === true
+screenshot desk
+shell project /home/user/demo cx project
+shell project-files /home/user/demo cx project/main.cx project/greeting/hello.cx project/greeting/count.cx
+shell pipe /home/user/demo seq 3 | cx echo.cx
+files bad.cx /home/user/demo
+shell bad /home/user/demo cx bad.cx
+shell status /home/user/demo cx bad.cx; echo "status $?"
+shell files /home/user/demo cx --enable=file files.cx && cat notes.txt
+shell image /home/user/examples cx build --target=image -o /tmp/fib.cximage fibonacci-recursive.cx && cx-core-image /tmp/fib.cximage
+shell example /home/user/examples cx fibonacci-recursive.cx
+eval __cxdeskSubmit("cd ~/demo && cx --enable=net http-server.cx &")
+wait-eval vnet.listening(8080)
+shell client /home/user/demo cx --enable=net http-client.cx
+eval vnet.httpFetch(8080, "GET", "/", null, {}).then((r) => { window.pageFetch = new TextDecoder().decode(r.body); })
+wait-eval (window.pageFetch || "").includes("Hello from CX")
+eval __cxdeskOpen("browser", "http://127.0.0.1:8080/")
+wait-eval [...document.querySelectorAll("iframe")].some((f) => (f.srcdoc || "").includes("Hello from CX"))
+screenshot browser
+shell zip /home/user cx --version > /dev/null; zip /tmp/demo.zip demo && rm -rf /tmp/unz && unzip /tmp/demo.zip -d /tmp/unz && cx /tmp/unz/demo/project
+# A file opened from the file manager opens in websh's editor in a window.
+eval __cxdeskOpen("viewer", "/home/user/demo/echo.cx")
+wait-eval document.body.innerText.includes("number++")
+screenshot editor
+# Typed keys edit the file, Ctrl+S saves it and Ctrl+Q closes the window.
+key Enter
+type // edited in the browser
+key ctrl+s
+key ctrl+q
+wait-eval ![...document.querySelectorAll(".wb-title")].some((t) => t.textContent.includes("edit echo.cx"))
+shell edited /home/user/demo cat echo.cx; seq 2 | cx echo.cx
+# The home folder is kept in IndexedDB: a file written before a reload is
+# there after it.
+shell keep /home/user echo kept across a reload > kept.txt
+eval jsfs.persist.flush()
+open /desk.html
+wait-eval window.cxdeskReady === true
+shell reload /home/user cat kept.txt

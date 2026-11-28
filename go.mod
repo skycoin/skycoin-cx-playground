@@ -3,7 +3,6 @@ module github.com/skycoin/skycoin-cx-playground
 go 1.27.3
 
 require (
-	github.com/0magnet/bottle v0.0.1-0.20261028202309-2b922f28f74e
 	github.com/prashantv/gostub v1.0.0
 	github.com/skycoin/skycoin-cx v0.9.0-alpha1
 )
@@ -21,5 +20,3 @@ require (
 	golang.org/x/mobile v0.0.0-20261117202452-47699113848a // indirect
 	lukechampine.com/blake3 v1.5.3 // indirect
 )
-
-tool github.com/skycoin/skycoin-cx/t11-cx

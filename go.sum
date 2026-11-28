@@ -1,5 +1,3 @@
-github.com/0magnet/bottle v0.0.1-0.20261028202309-2b922f28f74e h1:mVhZH+mh1N2+Z1Cp+FXqSrtZmAmliiM+NRZE6k2kdSk=
-github.com/0magnet/bottle v0.0.1-0.20261028202309-2b922f28f74e/go.mod h1:02z8sWzqF3QH4SjMxnx5bnysFUqsw9CdUTtIj+CIxkw=
 github.com/go-gl/gl v0.0.0-20260331235117-4566fea9a276 h1:IO5P06Pcj9K04d+l4nrf3c2U56+dAotIFG6u4P1wAHI=
 github.com/go-gl/gl v0.0.0-20260331235117-4566fea9a276/go.mod h1:9YTyiznxEY1fVinfM7RvRcjRHbw2xLBJ3AAGIT0I4Nw=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20260823155953-d41da22a9587 h1:yzPGEmWIlLQvQ0HvNHpRzLwyJ3pAmVXpa6pGclnH9Ks=

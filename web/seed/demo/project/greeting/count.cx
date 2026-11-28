@@ -1,0 +1,5 @@
+package greeting
+
+func Count() (count i32) { global greeted
+	count = greeted
+}
