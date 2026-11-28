@@ -1,0 +1,6 @@
+package main
+
+func main() {
+	var x i32 = "not a number"
+	i32.print(x)
+}

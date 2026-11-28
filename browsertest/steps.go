@@ -101,6 +101,11 @@ func (r *stepRunner) stepRun(line string) error {
 			return errors.New("want spawn NAME CWD ARGV...")
 		}
 		return r.stepSpawn(args[0], args[1], args[2:])
+	case "shell":
+		if len(args) < 3 {
+			return errors.New("want shell NAME CWD COMMAND...")
+		}
+		return r.stepShell(args[0], args[1], strings.TrimSpace(strings.SplitN(rest, " ", 3)[2]))
 	case "pull":
 		if len(args) != 2 {
 			return errors.New("want pull JSFS-FOLDER NAME")
@@ -196,6 +201,11 @@ func (r *stepRunner) keyPress(name string) error {
 	if name == "ctrl+a" {
 		return r.keyEvents(map[string]any{"key": "a", "code": "KeyA", "windowsVirtualKeyCode": 65,
 			"modifiers": 2, "commands": []string{"selectAll"}})
+	}
+	if letter, ok := strings.CutPrefix(name, "ctrl+"); ok && len(letter) == 1 && letter[0] >= 'a' && letter[0] <= 'z' {
+		upper := strings.ToUpper(letter)
+		return r.keyEvents(map[string]any{"key": letter, "code": "Key" + upper,
+			"windowsVirtualKeyCode": int(upper[0]), "modifiers": 2})
 	}
 	d, ok := keyDefinitions[name]
 	if !ok {
@@ -531,6 +541,22 @@ func (r *stepRunner) checkRun(line string) error {
 			return fmt.Errorf("screenshot is %dx%d, want 1024x768", c.Width, c.Height)
 		}
 		return nil
+	case "same":
+		if len(args) != 2 {
+			return errors.New("want same RESULT RESULT")
+		}
+		a, err := os.ReadFile(r.resultPath(args[0]))
+		if err != nil {
+			return err
+		}
+		b, err := os.ReadFile(r.resultPath(args[1]))
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(a, b) {
+			return fmt.Errorf("%s and %s differ: %q and %q", args[0], args[1], clip(a), clip(b))
+		}
+		return nil
 	case "differs":
 		if len(args) != 2 {
 			return errors.New("want differs RESULT RESULT")
@@ -558,4 +584,48 @@ func (r *stepRunner) tail(name string) string {
 		s = s[len(s)-300:]
 	}
 	return s
+}
+
+// stepShell runs a command line in a shell of the workstation page, which
+// runs programs from /bin as websh does at its prompt, and saves its output
+// and exit status as stepSpawn does.
+func (r *stepRunner) stepShell(name, cwd, command string) error {
+	var res struct {
+		Code   int    `json:"code"`
+		Stdout string `json:"stdout"`
+		Stderr string `json:"stderr"`
+	}
+	err := r.conn.cdpEvaluate(r.ctx, `(async () => {
+		jsfs.mkdirp(`+jsString(cwd)+`);
+		const r = await window.__cxdeskExec(`+jsString(cwd)+`, `+jsString(r.expand(command))+`, "");
+		const b64 = (s) => {
+			const p = new TextEncoder().encode(s);
+			let t = "";
+			for (let i = 0; i < p.length; i += 32768) t += String.fromCharCode.apply(null, p.subarray(i, i + 32768));
+			return btoa(t);
+		};
+		return {code: r.code, stdout: b64(r.stdout), stderr: b64(r.stderr)};
+	})()`, &res)
+	if err != nil {
+		return err
+	}
+	r.exits[name] = res.Code
+	for ext, data := range map[string]string{".stdout": res.Stdout, ".stderr": res.Stderr} {
+		b, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(r.resultPath(name+ext), b, 0o644); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(r.resultPath(name+".exit"), []byte(strconv.Itoa(res.Code)+"\n"), 0o644)
+}
+
+// clip shortens b for a message.
+func clip(b []byte) string {
+	if len(b) > 200 {
+		return string(b[:200]) + "..."
+	}
+	return string(b)
 }

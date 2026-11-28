@@ -1,0 +1,22 @@
+exit project 0
+contains project.stdout Hello, CX!
+contains project.stdout 1 people greeted
+same project.stdout project-files.stdout
+exit pipe 0
+contains pipe.stdout 3: 3
+contains status.stdout status
+differs bad.exit project.exit
+exit files 0
+contains files.stdout written by a CX program
+exit image 0
+same image.stdout example.stdout
+exit client 0
+contains client.stdout Hello from CX
+png desk
+png browser
+exit zip 0
+contains zip.stdout Hello, CX!
+png editor
+contains reload.stdout kept across a reload
+contains edited.stdout // edited in the browser
+contains edited.stdout 2: 2

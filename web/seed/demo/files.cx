@@ -1,0 +1,21 @@
+// File IO with the os library. The file goes to the folder cx runs in,
+// which in this tab is bottle's in-memory filesystem: cat notes.txt after.
+//
+//	cx --enable=file files.cx
+package main
+
+import "sys/os"
+import "sys/string"
+
+func main() {
+	var handle i32 = os.Create("notes.txt")
+	var ok bool
+	ok = os.WriteUI8Slice(handle, string.BytesOfString("written by a CX program\n"))
+	test(ok, true, "write notes.txt")
+	test(os.Close(handle), true, "close notes.txt")
+
+	var text str
+	text, ok = os.ReadAllText("notes.txt")
+	test(ok, true, "read notes.txt")
+	printf("notes.txt holds: %s", text)
+}

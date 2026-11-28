@@ -1,0 +1,8 @@
+package greeting
+
+var greeted i32
+
+func Hello(name str) { global greeted
+	printf("Hello, %s!\n", name)
+	greeted++
+}

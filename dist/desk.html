@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CX Workstation</title>
+<script src="coi-register.js"></script>
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0e0c14; color: #cdd2da; font: 13px/1.5 ui-monospace, monospace; }
+#desktop { position: absolute; inset: 0; }
+#boot { position: absolute; left: 1em; bottom: calc(1.8em + 34px); color: #7a8290; white-space: pre; }
+#note { position: absolute; left: 1em; bottom: calc(.5em + 34px); color: #5a6270; }
+#note a { color: #9d7cff; }
+</style>
+</head>
+<body>
+<div id="desktop"></div>
+<pre id="boot"></pre>
+<div id="note">CX workstation: the real cx in a terminal, files kept in this browser. <a href="index.html">Quick single file playground</a> · <a href="https://github.com/skycoin/skycoin-cx-playground">source</a></div>
+<script src="jsfs.js"></script>
+<script src="wasm_exec.js"></script>
+<script src="fsbridge.js"></script>
+<script src="proc.js"></script>
+<script src="vnet.js"></script>
+<script src="js/desk.js"></script>
+</body>
+</html>
